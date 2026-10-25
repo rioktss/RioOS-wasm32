@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RioOS-wasm32 - Running in Browser</title>
+<style>
+  body{background:#000;color:#0f0;font-family:monospace;padding:20px}
+  #term{background:#0a0a0a;border:1px solid #333;padding:16px;border-radius:8px;min-height:400px;white-space:pre-wrap}
+  .ok{color:#00ff88} .err{color:#ff5555}
+</style>
+</head>
+<body>
+<h2>RioOS-wasm32 <span class="ok">[wasm32-wasi]</span></h2>
+<div id="term">Booting RioOS...\nLoading wasm/dist/rioos.wasm\n</div>
+
+<script type="module">
+const term = document.getElementById('term');
+function log(m,c=''){ term.innerHTML += `<span class="${c}">${m}\n</span>`; }
+
+async function boot(){
+  try{
+    log('Fetching rioos.wasm...','ok');
+    const res = await fetch('./wasm/dist/rioos.wasm');
+    if(!res.ok) throw new Error('rioos.wasm not found in wasm/dist/');
+    const bytes = await res.arrayBuffer();
+    log(`Loaded ${bytes.byteLength} bytes`, 'ok');
+    log('\n> RioOS Boot OK! (WASI env WIP)\n> Kernel ready.','ok');
+    // TODO: init WASI + instantiate wasm here
+  }catch(e){
+    log('ERROR: '+e.message,'err');
+    log('Pastiin file ada di wasm/dist/rioos.wasm','err');
+  }
+}
+boot();
+</script>
+</body>
+</html>
