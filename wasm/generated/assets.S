@@ -1,0 +1,122 @@
+.section .rodata.rio_assets,"",@
+.p2align 4
+.global rio_asset_apps_calculator_rpk_start
+rio_asset_apps_calculator_rpk_start:
+.incbin "apps/calculator.rpk"
+.global rio_asset_apps_calculator_rpk_end
+rio_asset_apps_calculator_rpk_end:
+.size rio_asset_apps_calculator_rpk_start, rio_asset_apps_calculator_rpk_end - rio_asset_apps_calculator_rpk_start
+.size rio_asset_apps_calculator_rpk_end, 0
+.p2align 4
+.global rio_asset_apps_clock_rpk_start
+rio_asset_apps_clock_rpk_start:
+.incbin "apps/clock.rpk"
+.global rio_asset_apps_clock_rpk_end
+rio_asset_apps_clock_rpk_end:
+.size rio_asset_apps_clock_rpk_start, rio_asset_apps_clock_rpk_end - rio_asset_apps_clock_rpk_start
+.size rio_asset_apps_clock_rpk_end, 0
+.p2align 4
+.global rio_asset_apps_files_rpk_start
+rio_asset_apps_files_rpk_start:
+.incbin "apps/files.rpk"
+.global rio_asset_apps_files_rpk_end
+rio_asset_apps_files_rpk_end:
+.size rio_asset_apps_files_rpk_start, rio_asset_apps_files_rpk_end - rio_asset_apps_files_rpk_start
+.size rio_asset_apps_files_rpk_end, 0
+.p2align 4
+.global rio_asset_apps_launcher_rpk_start
+rio_asset_apps_launcher_rpk_start:
+.incbin "apps/launcher.rpk"
+.global rio_asset_apps_launcher_rpk_end
+rio_asset_apps_launcher_rpk_end:
+.size rio_asset_apps_launcher_rpk_start, rio_asset_apps_launcher_rpk_end - rio_asset_apps_launcher_rpk_start
+.size rio_asset_apps_launcher_rpk_end, 0
+.p2align 4
+.global rio_asset_apps_pengaturan_rpk_start
+rio_asset_apps_pengaturan_rpk_start:
+.incbin "apps/pengaturan.rpk"
+.global rio_asset_apps_pengaturan_rpk_end
+rio_asset_apps_pengaturan_rpk_end:
+.size rio_asset_apps_pengaturan_rpk_start, rio_asset_apps_pengaturan_rpk_end - rio_asset_apps_pengaturan_rpk_start
+.size rio_asset_apps_pengaturan_rpk_end, 0
+.p2align 4
+.global rio_asset_apps_terminal_rpk_start
+rio_asset_apps_terminal_rpk_start:
+.incbin "apps/terminal.rpk"
+.global rio_asset_apps_terminal_rpk_end
+rio_asset_apps_terminal_rpk_end:
+.size rio_asset_apps_terminal_rpk_start, rio_asset_apps_terminal_rpk_end - rio_asset_apps_terminal_rpk_start
+.size rio_asset_apps_terminal_rpk_end, 0
+.p2align 4
+.global rio_asset_apps_wallpaper_rpk_start
+rio_asset_apps_wallpaper_rpk_start:
+.incbin "apps/wallpaper.rpk"
+.global rio_asset_apps_wallpaper_rpk_end
+rio_asset_apps_wallpaper_rpk_end:
+.size rio_asset_apps_wallpaper_rpk_start, rio_asset_apps_wallpaper_rpk_end - rio_asset_apps_wallpaper_rpk_start
+.size rio_asset_apps_wallpaper_rpk_end, 0
+.p2align 4
+.global rio_asset_assets_icons_calculator_bmp_start
+rio_asset_assets_icons_calculator_bmp_start:
+.incbin "assets/icons/calculator.bmp"
+.global rio_asset_assets_icons_calculator_bmp_end
+rio_asset_assets_icons_calculator_bmp_end:
+.size rio_asset_assets_icons_calculator_bmp_start, rio_asset_assets_icons_calculator_bmp_end - rio_asset_assets_icons_calculator_bmp_start
+.size rio_asset_assets_icons_calculator_bmp_end, 0
+.p2align 4
+.global rio_asset_assets_icons_clock_bmp_start
+rio_asset_assets_icons_clock_bmp_start:
+.incbin "assets/icons/clock.bmp"
+.global rio_asset_assets_icons_clock_bmp_end
+rio_asset_assets_icons_clock_bmp_end:
+.size rio_asset_assets_icons_clock_bmp_start, rio_asset_assets_icons_clock_bmp_end - rio_asset_assets_icons_clock_bmp_start
+.size rio_asset_assets_icons_clock_bmp_end, 0
+.p2align 4
+.global rio_asset_assets_icons_files_bmp_start
+rio_asset_assets_icons_files_bmp_start:
+.incbin "assets/icons/files.bmp"
+.global rio_asset_assets_icons_files_bmp_end
+rio_asset_assets_icons_files_bmp_end:
+.size rio_asset_assets_icons_files_bmp_start, rio_asset_assets_icons_files_bmp_end - rio_asset_assets_icons_files_bmp_start
+.size rio_asset_assets_icons_files_bmp_end, 0
+.p2align 4
+.global rio_asset_assets_icons_launcher_bmp_start
+rio_asset_assets_icons_launcher_bmp_start:
+.incbin "assets/icons/launcher.bmp"
+.global rio_asset_assets_icons_launcher_bmp_end
+rio_asset_assets_icons_launcher_bmp_end:
+.size rio_asset_assets_icons_launcher_bmp_start, rio_asset_assets_icons_launcher_bmp_end - rio_asset_assets_icons_launcher_bmp_start
+.size rio_asset_assets_icons_launcher_bmp_end, 0
+.p2align 4
+.global rio_asset_assets_icons_settings_bmp_start
+rio_asset_assets_icons_settings_bmp_start:
+.incbin "assets/icons/settings.bmp"
+.global rio_asset_assets_icons_settings_bmp_end
+rio_asset_assets_icons_settings_bmp_end:
+.size rio_asset_assets_icons_settings_bmp_start, rio_asset_assets_icons_settings_bmp_end - rio_asset_assets_icons_settings_bmp_start
+.size rio_asset_assets_icons_settings_bmp_end, 0
+.p2align 4
+.global rio_asset_assets_icons_terminal_bmp_start
+rio_asset_assets_icons_terminal_bmp_start:
+.incbin "assets/icons/terminal.bmp"
+.global rio_asset_assets_icons_terminal_bmp_end
+rio_asset_assets_icons_terminal_bmp_end:
+.size rio_asset_assets_icons_terminal_bmp_start, rio_asset_assets_icons_terminal_bmp_end - rio_asset_assets_icons_terminal_bmp_start
+.size rio_asset_assets_icons_terminal_bmp_end, 0
+.p2align 4
+.global rio_asset_assets_icons_wallpaper_bmp_start
+rio_asset_assets_icons_wallpaper_bmp_start:
+.incbin "assets/icons/wallpaper.bmp"
+.global rio_asset_assets_icons_wallpaper_bmp_end
+rio_asset_assets_icons_wallpaper_bmp_end:
+.size rio_asset_assets_icons_wallpaper_bmp_start, rio_asset_assets_icons_wallpaper_bmp_end - rio_asset_assets_icons_wallpaper_bmp_start
+.size rio_asset_assets_icons_wallpaper_bmp_end, 0
+.p2align 4
+.global rio_asset_assets_wallpapers_rioos_default_bmp_start
+rio_asset_assets_wallpapers_rioos_default_bmp_start:
+.incbin "assets/wallpapers/rioos-default.bmp"
+.global rio_asset_assets_wallpapers_rioos_default_bmp_end
+rio_asset_assets_wallpapers_rioos_default_bmp_end:
+.size rio_asset_assets_wallpapers_rioos_default_bmp_start, rio_asset_assets_wallpapers_rioos_default_bmp_end - rio_asset_assets_wallpapers_rioos_default_bmp_start
+.size rio_asset_assets_wallpapers_rioos_default_bmp_end, 0
+.p2align 4

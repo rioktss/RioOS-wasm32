@@ -1,0 +1,398 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<meta name="color-scheme" content="dark">
+<title>rioos</title>
+<style>
+:root{color-scheme:dark;--page:#000;--terminal:#000;--text:#fff;--muted:#888;--green:#8be28b;--blue:#8ab4f8;--red:#ff7777}
+*{box-sizing:border-box}
+html,body{width:100%;height:100%;margin:0;background:#000;color:#fff}
+body{font:16px/1.5 ui-monospace,"Cascadia Code","SFMono-Regular",Consolas,"Liberation Mono",monospace;overflow:hidden;overscroll-behavior:none}
+.app{width:100%;height:100dvh;height:var(--rio-viewport-height,100dvh);min-height:0;display:flex;flex-direction:column;padding:12px;background:#000}
+.window{width:100%;height:100%;min-height:0;margin:0;display:flex;flex-direction:column;overflow:hidden;border:0;border-radius:0;background:#000;box-shadow:none}
+/* Elemen lama tetap ada agar semua selector dan handler JS tetap terhubung. */
+.titlebar,.toolbar,.footer,#welcome,#welcomeRule{display:none!important}
+.terminal{flex:1;min-height:0;width:100%;overflow:auto;padding:0;background:#000;color:#fff;scrollbar-color:#444 transparent;scrollbar-width:thin;overscroll-behavior:contain;touch-action:pan-y}
+#transcript{min-height:0;width:100%}
+.command-line{display:flex;align-items:baseline;flex-wrap:wrap;gap:0 8px;min-height:1.5em;white-space:pre-wrap;overflow-wrap:anywhere;color:#fff}
+.command-line .prompt{flex:none;color:#fff;font-weight:400;white-space:pre-wrap}
+.command-line .path{color:#fff}
+.command-line .command{color:#fff;overflow-wrap:anywhere}
+.output{margin:0 0 4px;padding:0;color:#fff;font:inherit;white-space:pre-wrap;overflow-wrap:anywhere;word-break:normal}
+.output.error{color:var(--red)}
+.active-line{display:flex;align-items:baseline;gap:8px;width:100%;min-height:1.5em;margin-top:0;white-space:pre-wrap}
+.active-line label{flex:none;color:#fff;font-size:inherit;font-weight:400;white-space:pre-wrap}
+.active-line input{appearance:none;display:block;min-width:0;flex:1;width:0;padding:0;margin:0;border:0;border-radius:0;outline:0;background:transparent;color:#fff;caret-color:#fff;font:inherit;font-size:16px;line-height:1.5;touch-action:manipulation;user-select:text;-webkit-user-select:text}
+.active-line input::placeholder{color:#666}
+.active-line input:disabled{opacity:1;cursor:default}
+.active-line input:focus{outline:none}
+.cursor-hint{height:1px}
+.hidden{display:none!important}
+@media(max-width:560px){.app{padding:10px}.terminal{padding:0}.active-line{gap:7px}.active-line input{font-size:16px}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <section class="window" aria-label="RioOS browser terminal">
+    <header class="titlebar">
+      <div class="dots" aria-hidden="true"><i class="dot red"></i><i class="dot yellow"></i><i class="dot green"></i></div>
+      <div class="title">user@RioOS /home/user — Terminal</div>
+      <div style="width:47px" aria-hidden="true"></div>
+    </header>
+    <div class="toolbar">
+      <div class="left-tools"><span class="online" id="runtimeState">Starting WASM…</span><span id="diskState">MyFS: loading</span></div>
+      <div class="right-tools"><button class="tool" id="clearButton" type="button">Clear</button><button class="tool" id="copyButton" type="button">Copy</button><button class="tool" id="restartButton" type="button">Restart</button></div>
+    </div>
+    <main class="terminal" id="terminal" tabindex="0" aria-label="Terminal output and input">
+      <section class="welcome" id="welcome">
+        <pre class="logo" aria-label="RioOS ASCII logo"> ____  _       ____   _____ ____
+|  _ \\(_) ___ / ___| | ____/ ___|
+| |_) | |/ _ \\___ \\ |  _| \\___ \\
+|  _ &lt;| | (_) |___) || |___ ___) |
+|_| \\_\\_|\\___/|____/ |_____|____/</pre>
+        <div class="sysinfo"><div class="sys-title">RioOS WASM32</div><div><span class="key">Kernel</span><span class="value">MyKernel / browser host</span></div><div><span class="key">Shell</span><span class="value">RioOS command dispatcher</span></div><div><span class="key">Filesystem</span><span class="value">MyFS · persistent storage</span></div></div>
+      </section>
+      <div class="rule" id="welcomeRule"></div>
+      <div id="transcript" aria-live="polite" aria-relevant="additions"></div>
+      <form class="active-line" id="commandForm" autocomplete="off">
+        <label class="prompt" id="activePrompt" for="commandInput">[user@RioOS /home/user]$</label>
+        <input id="commandInput" name="command" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" inputmode="text" enterkeyhint="enter" aria-label="RioOS command" placeholder="" disabled>
+      </form>
+      <div class="cursor-hint"></div>
+    </main>
+    <footer class="footer"><span>RioOS Terminal</span><span id="footerStatus">Initializing filesystem…</span><span>↑/↓ history · Ctrl+L clear</span></footer>
+  </section>
+</div>
+<script>
+(() => {
+  'use strict';
+  const SECTOR_SIZE = 512;
+  const SECTOR_PREFIX = 'rioos-wasm32-myfs-v1:';
+  const MAX_COMMAND_BYTES = 1023;
+  const terminal = document.getElementById('terminal');
+  const transcript = document.getElementById('transcript');
+  const welcome = document.getElementById('welcome');
+  const welcomeRule = document.getElementById('welcomeRule');
+  const input = document.getElementById('commandInput');
+  const form = document.getElementById('commandForm');
+  const prompt = document.getElementById('activePrompt');
+  const runtimeState = document.getElementById('runtimeState');
+  const diskState = document.getElementById('diskState');
+  const footerStatus = document.getElementById('footerStatus');
+  const app = document.querySelector('.app');
+  let instance = null;
+  let capturedOutput = '';
+  let commandHistory = [];
+  let historyCursor = 0;
+  let sectorsLoaded = 0;
+  let ready = false;
+
+  function setState(message, bad = false) {
+    runtimeState.textContent = message;
+    runtimeState.style.color = bad ? '#ff9b9b' : '#9cdaa1';
+    footerStatus.textContent = message;
+  }
+  function scrollBottom() {
+    requestAnimationFrame(() => { terminal.scrollTop = terminal.scrollHeight; });
+  }
+  function focusInput() {
+    if (!ready || input.disabled) return;
+    try { input.focus({ preventScroll: true }); }
+    catch (_) { input.focus(); }
+    requestAnimationFrame(() => {
+      terminal.scrollTop = terminal.scrollHeight;
+    });
+  }
+  function syncViewport() {
+    const viewport = window.visualViewport;
+    if (viewport && viewport.height > 0) {
+      app.style.setProperty('--rio-viewport-height', viewport.height + 'px');
+    } else {
+      app.style.removeProperty('--rio-viewport-height');
+    }
+    if (document.activeElement === input) scrollBottom();
+  }
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', syncViewport, { passive: true });
+    window.visualViewport.addEventListener('scroll', syncViewport, { passive: true });
+  }
+  window.addEventListener('resize', syncViewport, { passive: true });
+  syncViewport();
+
+  function getCString(ptr) {
+    if (!instance) return '/home/user';
+    const memory = new Uint8Array(instance.exports.memory.buffer);
+    const start = ptr >>> 0;
+    if (start >= memory.length) return '/home/user';
+    let end = start;
+    while (end < memory.length && memory[end] !== 0) end++;
+    return new TextDecoder().decode(memory.subarray(start, end)) || '/home/user';
+  }
+  function cwd() {
+    try { return getCString(instance.exports.rio_cli_cwd_ptr()); }
+    catch (_) { return '/home/user'; }
+  }
+  function displayPath(path) {
+    return path || '/';
+  }
+  function updatePrompt() {
+    const currentPath = displayPath(cwd());
+    prompt.textContent = `[user@RioOS ${currentPath}]$`;
+    const title = document.querySelector('.title');
+    if (title) title.textContent = `user@RioOS ${currentPath} — Terminal`;
+  }
+  function escapeHtml(value) {
+    return String(value).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+  }
+  function hostReadSector(sector, ptr) {
+    try {
+      const out = new Uint8Array(instance.exports.memory.buffer, ptr >>> 0, SECTOR_SIZE);
+      const encoded = localStorage.getItem(SECTOR_PREFIX + (sector >>> 0));
+      if (encoded === null) { out.fill(0); return 0; }
+      const binary = atob(encoded);
+      if (binary.length !== SECTOR_SIZE) { out.fill(0); return -1; }
+      for (let i = 0; i < SECTOR_SIZE; i++) out[i] = binary.charCodeAt(i);
+      sectorsLoaded++;
+      return 0;
+    } catch (error) {
+      console.warn('RioOS MyFS read failed:', error);
+      try { new Uint8Array(instance.exports.memory.buffer, ptr >>> 0, SECTOR_SIZE).fill(0); } catch (_) {}
+      return -1;
+    }
+  }
+  function hostWriteSector(sector, ptr) {
+    try {
+      const bytes = new Uint8Array(instance.exports.memory.buffer, ptr >>> 0, SECTOR_SIZE);
+      let hasData = false;
+      for (let i = 0; i < SECTOR_SIZE; i++) if (bytes[i] !== 0) { hasData = true; break; }
+      const key = SECTOR_PREFIX + (sector >>> 0);
+      if (!hasData) localStorage.removeItem(key);
+      else {
+        let binary = '';
+        for (let i = 0; i < SECTOR_SIZE; i++) binary += String.fromCharCode(bytes[i]);
+        localStorage.setItem(key, btoa(binary));
+      }
+      return 0;
+    } catch (error) {
+      console.warn('RioOS MyFS write failed:', error);
+      return -1;
+    }
+  }
+  function hostPutChar(value) {
+    capturedOutput += String.fromCharCode(value & 255);
+    return 0;
+  }
+  function createImports() {
+    return { env: {
+      rio_host_console_putc: hostPutChar,
+      rio_host_storage_read: hostReadSector,
+      rio_host_storage_write: hostWriteSector,
+      rio_host_epoch_seconds: () => Math.floor(Date.now() / 1000) >>> 0,
+      rio_host_monotonic_millis: () => Math.floor(performance.now()) >>> 0,
+      rio_host_prompt_password: (ptr, capacity) => {
+        try { new Uint8Array(instance.exports.memory.buffer, ptr >>> 0, capacity >>> 0).fill(0); } catch (_) {}
+        return -1;
+      }
+    }};
+  }
+  function makePromptLine(command) {
+    const row = document.createElement('div');
+    row.className = 'command-line';
+    const promptCopy = document.createElement('span');
+    promptCopy.className = 'prompt';
+    promptCopy.textContent = `[user@RioOS ${displayPath(cwd())}]$`;
+    const cmd = document.createElement('span');
+    cmd.className = 'command';
+    cmd.textContent = command;
+    row.append(promptCopy, cmd);
+    transcript.append(row);
+  }
+  function stripTerminalCodes(raw) {
+    const clear = /\x1b\[(?:2|3)J/.test(raw);
+    let text = raw.replace(/\x1b\[(?:2|3)J/g, '').replace(/\x1b\[H/g, '');
+    text = text.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, '');
+    text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    return { clear, text };
+  }
+  function appendOutput(raw, isError = false) {
+    const decoded = stripTerminalCodes(raw);
+    if (decoded.clear) {
+      transcript.replaceChildren();
+      welcome.classList.add('hidden');
+      welcomeRule.classList.add('hidden');
+    }
+    const text = decoded.text;
+    if (text.length && text.replace(/[\n\t ]/g, '').length > 0) {
+      const pre = document.createElement('pre');
+      pre.className = 'output' + (isError ? ' error' : '');
+      pre.textContent = text.replace(/\n+$/, '');
+      transcript.append(pre);
+    }
+  }
+  function clearTerminal() {
+    transcript.replaceChildren();
+    welcome.classList.add('hidden');
+    welcomeRule.classList.add('hidden');
+    scrollBottom();
+    focusInput();
+  }
+  function saveHistory(line) {
+    if (line && commandHistory[commandHistory.length - 1] !== line) commandHistory.push(line);
+    if (commandHistory.length > 500) commandHistory.shift();
+    historyCursor = commandHistory.length;
+  }
+  function executeLine(raw) {
+    const line = raw.trim();
+    makePromptLine(raw);
+    if (!line) { updatePrompt(); scrollBottom(); return; }
+    saveHistory(line);
+    if (/^(exit|quit|logout)$/i.test(line)) {
+      appendOutput('RioOS browser terminal cannot close the browser tab. You can leave this page or use Restart.\n');
+      scrollBottom(); return;
+    }
+    if (/^cls$/i.test(line)) {
+      clearTerminal(); updatePrompt(); return;
+    }
+    const encoded = new TextEncoder().encode(raw);
+    if (encoded.length > MAX_COMMAND_BYTES) {
+      appendOutput('rioos: command too long (maximum 1023 UTF-8 bytes)\n', true);
+      updatePrompt(); scrollBottom(); return;
+    }
+    try {
+      const ptr = instance.exports.rio_cli_buffer_ptr() >>> 0;
+      const target = new Uint8Array(instance.exports.memory.buffer, ptr, 1024);
+      target.fill(0);
+      target.set(encoded);
+      capturedOutput = '';
+      const result = instance.exports.rio_cli_execute(encoded.length);
+      const output = capturedOutput;
+      if (result < 0) appendOutput(`rioos: command failed (${result})\n`, true);
+      else appendOutput(output);
+      updatePrompt();
+      diskState.textContent = `MyFS: ${countSavedSectors()} sectors`;
+      footerStatus.textContent = `Command complete · ${encoded.length} bytes`;
+    } catch (error) {
+      appendOutput('runtime error: ' + (error && error.message ? error.message : String(error)) + '\n', true);
+      setState('Runtime error', true);
+    }
+    scrollBottom();
+  }
+  function countSavedSectors() {
+    let count = 0;
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith(SECTOR_PREFIX)) count++;
+      }
+    } catch (_) { return sectorsLoaded; }
+    return count;
+  }
+  form.addEventListener('submit', event => {
+    event.preventDefault();
+    if (!ready) return;
+    const line = input.value;
+    input.value = '';
+    executeLine(line);
+    focusInput();
+  });
+  input.addEventListener('keydown', event => {
+    if (event.key === 'Enter' && !event.isComposing && !event.shiftKey) {
+      event.preventDefault();
+      if (typeof form.requestSubmit === 'function') form.requestSubmit();
+      else form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      if (historyCursor > 0) {
+        historyCursor--;
+        input.value = commandHistory[historyCursor] || '';
+        input.setSelectionRange(input.value.length, input.value.length);
+      }
+    } else if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      if (historyCursor < commandHistory.length - 1) {
+        historyCursor++;
+        input.value = commandHistory[historyCursor] || '';
+      } else {
+        historyCursor = commandHistory.length;
+        input.value = '';
+      }
+    } else if (event.key === 'Tab') {
+      event.preventDefault();
+      input.setRangeText('  ', input.selectionStart, input.selectionEnd, 'end');
+    } else if (event.key.toLowerCase() === 'c' && event.ctrlKey) {
+      event.preventDefault();
+      input.value = '';
+      appendOutput('^C\n');
+      updatePrompt();
+      scrollBottom();
+    } else if (event.key.toLowerCase() === 'l' && event.ctrlKey) {
+      event.preventDefault();
+      clearTerminal();
+    }
+  });
+  input.addEventListener('focus', () => {
+    requestAnimationFrame(() => {
+      if (document.activeElement === input) terminal.scrollTop = terminal.scrollHeight;
+    });
+  });
+  /* Jangan mengambil alih pointerdown pada input: beberapa keyboard Android
+     kehilangan posisi caret jika fokus dipaksakan sebelum tap selesai. */
+  terminal.addEventListener('click', event => {
+    if (!event.target.closest('button') && event.target !== input && !event.target.closest('input')) focusInput();
+  });
+  document.getElementById('clearButton').addEventListener('click', clearTerminal);
+  document.getElementById('copyButton').addEventListener('click', async () => {
+    const text = transcript.innerText || '';
+    try {
+      await navigator.clipboard.writeText(text);
+      footerStatus.textContent = 'Terminal output copied';
+    } catch (_) {
+      const temporary = document.createElement('textarea');
+      temporary.value = text;
+      document.body.append(temporary);
+      temporary.select();
+      const ok = document.execCommand('copy');
+      temporary.remove();
+      footerStatus.textContent = ok ? 'Terminal output copied' : 'Copy was blocked by browser';
+    }
+  });
+  document.getElementById('restartButton').addEventListener('click', () => location.reload());
+
+  async function start() {
+    try {
+      setState('Loading WASM…');
+      const response = await fetch('./rioos.wasm', { cache: 'no-cache' });
+      if (!response.ok) throw new Error('rioos.wasm returned HTTP ' + response.status);
+      const { instance: loaded } = await WebAssembly.instantiate(await response.arrayBuffer(), createImports());
+      instance = loaded;
+      const initResult = instance.exports.rio_init();
+      if (initResult < 0) throw new Error('RioOS init failed (' + initResult + ')');
+      instance.exports.rio_finish_boot();
+      ready = true;
+      input.disabled = false;
+      updatePrompt();
+      const saved = countSavedSectors();
+      diskState.textContent = 'MyFS: ' + saved + ' sectors';
+      setState('WASM32 ready');
+      footerStatus.textContent = 'Shell online · MyFS persists in this browser';
+      appendOutput('RioOS browser terminal started successfully.\n');
+      appendOutput('The real RioOS command dispatcher is running inside WebAssembly.\n');
+      appendOutput('Type `help` to list commands. Use `version` for system details.\n\n');
+      scrollBottom();
+      focusInput();
+    } catch (error) {
+      setState('Startup failed', true);
+      footerStatus.textContent = error && error.message ? error.message : String(error);
+      appendOutput('Could not start RioOS WASM32: ' + (error && error.message ? error.message : String(error)) + '\n', true);
+      console.error(error);
+    }
+  }
+  start();
+})();
+</script>
+</body>
+</html>
