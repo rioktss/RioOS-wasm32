@@ -1,38 +1,42 @@
-# RioOS WASM32 Source Edition
+# RioOS - MyKernel v1.11.0 (wasm32)
 
-This archive contains the browser/WebAssembly edition of RioOS and only the shared source files needed to build it. Native AArch64 boot code, AArch64 assembly, the native linker script, native-only hardware drivers, QEMU disk images, and the original native build scripts are intentionally excluded.
+> A lightweight experimental kernel that boots directly in your browser!
 
-## What is included
+### 🚀 Try it Live: https://rioktss.github.io/RioOS-wasm32/
 
-- `wasm/`: WASM32 platform compatibility layer, UI bridge, asset embedding, Linux-style browser terminal (`index.html`), build/serve scripts, verification and smoke-test scripts.
-- `kernel/`, `fs/`, `net/`, `drivers/`, `ui/`: only shared C++ modules used by the WASM32 build (shell/commands, environment/history, MyFS/VFS, framebuffer/font renderer, applications, and UI).
-- `include/`: the transitive set of headers required to compile those modules. Some headers describe platform APIs that are implemented as browser compatibility stubs in `wasm/platform.cpp`; native driver implementations are not included.
-- `apps/`, `assets/`: application manifests and source assets embedded into the WASM module.
-- `wasm/dist/`: ready-to-run web output (`index.html` and the compiled `rioos.wasm`).
+No QEMU, no install, no compile. Just click and boot in 17 seconds.
 
-## Build and test
+![MyKernel](https://img.shields.io/badge/Kernel-MyKernel%20v1.11.0-blue)
+![Arch](https://img.shields.io/badge/Arch-wasm32-orange)
+![Platform](https://img.shields.io/badge/Platform-Browser-black)
+![License](https://img.shields.io/badge/License-MIT-green)
 
-Requirements: Clang/Clang++, `wasm-ld`, Python 3, and Node.js 18+ for the smoke test.
+### What is RioOS?
 
-```sh
-# Host-terminal mode (interactive shell in Termux)
-bash run.sh
+RioOS is an experimental kernel built on top of MyKernel, ported to WebAssembly (wasm32) to run on any modern browser. Built entirely from a phone in Bandung, Indonesia.
 
-# Linux-style browser terminal
-bash run-ui.sh
+**System Info:**
+- **OS:** RioOS
+- **Kernel:** Mykernel v1.11.0
+- **Architecture:** wasm32
+- **Machine:** Browser / WebAssembly host
+- **RAM:** 32 MiB
+- **Filesystem:** MyFS (persistent)
+- **License:** MIT
 
-# Rebuild WASM32 from source and run regression tests
-RIOOS_REBUILD=1 bash run.sh   # rebuild, then enter terminal mode
-bash wasm/build.sh            # rebuild only
-node wasm/test_wasm.cjs
-```
+### Quick Start
 
-The browser launcher serves a Linux-style interactive terminal at `http://127.0.0.1:8080`; command input in the page calls RioOS’s actual WASM command dispatcher and stores MyFS sectors in browser `localStorage`. The browser page is a terminal interface, not the pixel-framebuffer UI. `bash run.sh` remains the separate interactive terminal inside Termux and stores MyFS in `~/.rioos-wasm32/myfs-sectors.json` by default (`RIOOS_DATA_DIR` can override that location). On Android, use Termux with Clang, LLD, Python, and Node.js installed. Browser persistence is subject to site-data and quota policies.
+1. Visit **https://rioktss.github.io/RioOS-wasm32/**
+2. Wait for boot sequence
+3. Type `help` to see available commands
 
-## Port limitations
+### Available Commands
 
-This is a browser WASM port, not an emulation of the AArch64 machine. Browser WASM cannot provide physical MMU/GIC interrupts, AArch64 exception vectors, native context switching/SMP, AArch64 ELF execution, or QEMU VirtIO devices. Platform-dependent commands are mapped to compatibility behavior or report that the capability is unavailable. Network-stack source is retained as a shared component, but this browser build does not attach a real VirtIO network device.
+- `version` - Show system info
+- `help` - List all commands
+- `ls`, `pwd`, and more
 
-## Validation
+### Source Code
 
-`bash wasm/build.sh` compiles a fresh `wasm/dist/rioos.wasm`, and `node wasm/test_wasm.cjs` runs deterministic smoke tests for module boot, framebuffer output, UI navigation, apps, terminal input, and persistent filesystem reload. These tests do not prove the absence of every possible bug or replace testing in the target browser.
+```bash
+git clone https://github.com/rioktss/RioOS-wasm32
