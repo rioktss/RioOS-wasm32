@@ -1,16 +1,19 @@
 RioOS WASM32
 
-A WebAssembly port of RioOS that runs directly in your web browser.
+A WebAssembly-based port of RioOS running directly in your web browser.
 
 <p align="center">
   <a href="https://rioktss.github.io/RioOS-wasm32/">
-    <strong>🌐 Live Demo</strong>
+    <img src="https://img.shields.io/badge/Live_Demo-Visit_RioOS-blue?style=for-the-badge" alt="Live Demo">
   </a>
-</p>---
+</p>Live Demo:
+https://rioktss.github.io/RioOS-wasm32/
+
+---
 
 Overview
 
-RioOS WASM32 brings the RioOS kernel to the web using WebAssembly (WASM32), providing an interactive terminal environment without requiring a native installation.
+RioOS WASM32 is a browser-compatible edition of RioOS, compiled to WebAssembly (WASM32). It provides an interactive terminal environment powered by the shared RioOS kernel source.
 
 Features
 
@@ -18,24 +21,29 @@ Features
 - Interactive browser terminal
 - Host terminal support
 - MyFS and VFS
-- Shell and command system
-- Persistent storage
+- Shell and command dispatcher
+- Persistent filesystem storage
 - Cross-platform build scripts
 
-Build
+Build Requirements
 
-Requirements: Clang, LLD, Python 3, Node.js.
+- Clang / Clang++
+- LLVM LLD ("wasm-ld")
+- Python 3
+- Node.js
 
-# Build
+Build & Run
+
+Termux:
+
 bash termux/build.sh
-
-# Run
 bash termux/run.sh
 
-# Browser terminal
+Browser terminal:
+
 bash termux/run-terminal.sh
 
-Project Structure
+Directory Structure
 
 RioOS-wasm32/
 ├── index.html
@@ -59,7 +67,7 @@ RioOS-wasm32/
 
 Platform Limitations
 
-WASM32 runs inside a browser sandbox. Native hardware features such as physical MMU, GIC, hardware interrupts, and native SMP are not directly available.
+WASM32 operates within the browser sandbox and does not provide direct access to native hardware features such as physical MMU, GIC, hardware interrupts, or native SMP.
 
 License
 
@@ -69,5 +77,5 @@ See "LICENSE" (LICENSE).
 
 <p align="center">
   <strong>RioOS</strong><br>
-  <sub>An Operating System on the Web.</sub>
+  <sub>Bringing Operating Systems to the Web.</sub>
 </p>
