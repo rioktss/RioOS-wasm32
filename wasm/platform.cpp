@@ -283,7 +283,7 @@ int user_current_pid() { return 1; }
 const char* user_get_args() { return ""; }
 void user_set_exit_code(int) {}
 void user_execute(const char*, const char*)
-{ uart_puts("ELF execution: native AArch64 binaries cannot run in wasm32; use built-in RioOS applications.\r\n"); }
+{ uart_puts("ELF execution: native AArch64 binaries cannot run in this text-only WASM32 build.\r\n"); }
 extern "C" void user_exit_return() {}
 extern "C" void user_enter(uint64_t, uint64_t) {}
 int elf_load(const char*, uint64_t*) { return -1; }

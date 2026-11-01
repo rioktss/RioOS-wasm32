@@ -1,7 +1,6 @@
 # Build and generated outputs
 build/
-wasm/dist/obj/
-wasm/generated/assets.S
+build/wasm32/
 *.o
 *.elf
 *.bin

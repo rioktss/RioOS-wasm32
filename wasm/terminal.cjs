@@ -6,7 +6,7 @@ const os = require('node:os');
 const path = require('node:path');
 const readline = require('node:readline');
 
-const wasmPath = path.join(__dirname, 'dist', 'rioos.wasm');
+const wasmPath = path.join(__dirname, '..', 'rioos.wasm');
 const dataDir = process.env.RIOOS_DATA_DIR || path.join(os.homedir(), '.rioos-wasm32');
 const diskPath = path.join(dataDir, 'myfs-sectors.json');
 const SECTOR_SIZE = 512;
@@ -93,7 +93,7 @@ function showPrompt(rl) {
 
 async function main() {
   if (!fs.existsSync(wasmPath)) {
-    throw new Error(`Missing ${wasmPath}. Run bash wasm/build.sh first.`);
+    throw new Error(`Missing ${wasmPath}. Run python3 wasm/build.py first.`);
   }
   loadDisk();
   const bytes = fs.readFileSync(wasmPath);
@@ -111,7 +111,7 @@ async function main() {
   process.stdout.write('RioOS WASM32 · standalone terminal edition\n');
   process.stdout.write('Built-in RioOS shell + MyFS persistent storage. Type `help` for commands.\n');
   process.stdout.write(`MyFS: ${sectors.size} saved sectors · ${dataDir}\n`);
-  process.stdout.write('Note: browser-only UI apps can be launched with: bash wasm/run-ui.sh\n\n');
+  process.stdout.write('Text-only runtime: no graphical UI or bundled RPK applications.\n\n');
 
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout, terminal: true, historySize: 1000 });
   let closing = false;
@@ -135,11 +135,6 @@ async function main() {
     const trimmed = line.trim();
     if (!trimmed) { showPrompt(rl); return; }
     if (/^(exit|logout|quit)$/i.test(trimmed)) { close(); return; }
-    if (/^(nano|calc|exec|userdemo|user|su)(?:\s|$)/i.test(trimmed)) {
-      process.stdout.write(`${trimmed.split(/\s+/, 1)[0]}: interactive ELF execution is not available in the WASM32 host terminal. Use bash wasm/run-ui.sh for RioOS's graphical apps.\n`);
-      showPrompt(rl);
-      return;
-    }
     const encoded = Buffer.from(line, 'utf8');
     if (encoded.length > 1023) {
       process.stdout.write('rioos: command too long (maximum 1023 UTF-8 bytes)\n');

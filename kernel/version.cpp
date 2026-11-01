@@ -1,6 +1,5 @@
 #include "version.h"
 
-#include "fb.h"
 #include "uart.h"
 #include "fs.h"
 #include "memory.h"
@@ -16,7 +15,9 @@
 static void putc_both(char c)
 {
     uart_putc(c);
+#if !defined(__wasm32__)
     if (!uart_output_hook_active()) fb_putc(c, 0xFFFFFFU);
+#endif
 }
 
 static void puts_both(const char* text)
@@ -25,7 +26,9 @@ static void puts_both(const char* text)
         return;
 
     uart_puts(text);
+#if !defined(__wasm32__)
     if (!uart_output_hook_active()) fb_print(text, 0xFFFFFFU);
+#endif
 }
 
 static void print_u64_both(uint64_t value)
@@ -170,15 +173,19 @@ void command_version()
 
     /* Preserve the serial shell's two-column framebuffer, but don't draw over
        a foreground pixel terminal that has redirected UART output. */
+#if !defined(__wasm32__)
     if (!uart_output_hook_active())
     {
         fb_set_cursor(0, 0);
         fb_print(MYKERNEL_LOGO, 0x00FF00U);
         fb_set_cursor(320, 0);
     }
+#endif
     print_info();
+#if !defined(__wasm32__)
     if (!uart_output_hook_active())
         fb_set_cursor(0, 512);
+#endif
 
     uart_puts("\r\n");
 }

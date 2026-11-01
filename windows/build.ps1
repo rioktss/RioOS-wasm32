@@ -1,6 +1,11 @@
 $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent $PSScriptRoot
-$Bash = Get-Command bash -ErrorAction SilentlyContinue
-if (-not $Bash) { throw 'Build WASM32 on Windows using Git Bash or WSL, then install clang, wasm-ld and Python 3.' }
-& $Bash.Source (Join-Path $Root 'wasm/build.sh') @args
+$Python = Get-Command python -ErrorAction SilentlyContinue
+if ($Python) {
+    & $Python.Source (Join-Path $Root 'wasm/build.py') @args
+} else {
+    $Py = Get-Command py -ErrorAction SilentlyContinue
+    if (-not $Py) { throw 'Python 3 is required. Install Python 3 and add it to PATH.' }
+    & $Py.Source -3 (Join-Path $Root 'wasm/build.py') @args
+}
 if ($LASTEXITCODE -ne 0) { throw "WASM32 build failed with exit code $LASTEXITCODE" }

@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 'use strict';
-// Offline WASM runtime smoke test. Sector Map is a deterministic stand-in for localStorage.
+// Terminal-only WASM runtime smoke test. Storage Map simulates the host disk.
 const fs = require('node:fs');
 const path = require('node:path');
 const assert = require('node:assert/strict');
 
-const wasmPath = path.join(__dirname, 'dist', 'rioos.wasm');
+const wasmPath = path.join(__dirname, '..', 'rioos.wasm');
 const bytes = fs.readFileSync(wasmPath);
 const startedAt = Date.now();
 const sectors = new Map();
@@ -30,90 +30,31 @@ function createImports(getInstance) {
     rio_host_monotonic_millis() { return (Date.now() - startedAt) >>> 0; },
     rio_host_prompt_password(ptr, capacity) {
       new Uint8Array(getInstance().exports.memory.buffer, ptr >>> 0, capacity >>> 0).fill(0);
-      return -1; // Prompt cancelled in unattended tests.
+      return -1;
     }
   }};
 }
 
-function framebufferHash(exports) {
-  const ptr = exports.rio_framebuffer_ptr() >>> 0;
-  const pixels = new Uint32Array(exports.memory.buffer, ptr,
-    exports.rio_framebuffer_width() * exports.rio_framebuffer_height());
-  let hash = 2166136261;
-  for (let i = 0; i < pixels.length; i += 17) {
-    hash ^= pixels[i] >>> 0;
-    hash = Math.imul(hash, 16777619) >>> 0;
-  }
-  assert.ok(pixels.some(value => value !== 0), 'framebuffer should not be blank');
-  return hash >>> 0;
-}
-
 async function main() {
   const module = await WebAssembly.compile(bytes);
-  assert.deepEqual(WebAssembly.Module.imports(module).map(item => item.name).sort(), [
+  const imports = WebAssembly.Module.imports(module).map(item => item.name).sort();
+  assert.deepEqual(imports, [
     'rio_host_console_putc', 'rio_host_epoch_seconds', 'rio_host_monotonic_millis',
     'rio_host_prompt_password', 'rio_host_storage_read', 'rio_host_storage_write'
-  ].sort(), 'the module should only import the documented host bridge');
-  const exportsRequired = [
-    'memory', 'rio_init', 'rio_finish_boot', 'rio_key', 'rio_pointer', 'rio_tick',
-    'rio_framebuffer_ptr', 'rio_framebuffer_width', 'rio_framebuffer_height',
-    'rio_take_dirty', 'rio_get_ui_state', 'rio_get_active_app', 'rio_seed_assets', 'rio_terminal_selftest_flags',
-    'rio_cli_buffer_ptr', 'rio_cli_cwd_ptr', 'rio_cli_execute'
-  ];
-  for (const name of exportsRequired) assert.ok(WebAssembly.Module.exports(module).some(item => item.name === name), `missing export ${name}`);
+  ].sort(), 'only the documented host bridge is imported');
 
-  let first;
-  first = await WebAssembly.instantiate(module, createImports(() => first));
-  const e = first.exports;
-  assert.equal(e.rio_init(), 0, 'first boot and asset seed should succeed');
-  assert.equal(e.rio_framebuffer_width(), 1024);
-  assert.equal(e.rio_framebuffer_height(), 768);
+  const exported = WebAssembly.Module.exports(module).map(item => item.name);
+  for (const name of ['memory', 'rio_init', 'rio_finish_boot', 'rio_cli_buffer_ptr', 'rio_cli_cwd_ptr', 'rio_cli_execute'])
+    assert.ok(exported.includes(name), `missing export ${name}`);
+  for (const removed of ['rio_framebuffer_ptr', 'rio_key', 'rio_pointer', 'rio_get_ui_state'])
+    assert.ok(!exported.includes(removed), `${removed} must not be present in terminal-only build`);
+
+  let instance;
+  instance = await WebAssembly.instantiate(module, createImports(() => instance));
+  const e = instance.exports;
+  assert.equal(e.rio_init(), 0, 'boot and filesystem initialization succeed');
   e.rio_finish_boot();
-  assert.equal(e.rio_get_ui_state(), 0, 'boot should reach lock screen');
-  const lockHash = framebufferHash(e);
 
-  e.rio_key(13); // unlock -> home
-  assert.equal(e.rio_get_ui_state(), 1);
-  const homeHash = framebufferHash(e);
-  assert.notEqual(homeHash, lockHash, 'home screen should render differently from lock screen');
-
-  // Exercise browser pointer/touch navigation, including the Control Centre swipe.
-  e.rio_pointer(188, 368, 1);
-  e.rio_pointer(188, 368, 0);
-  assert.equal(e.rio_get_ui_state(), 2, 'pointer tap should open the first Home app');
-  assert.equal(e.rio_get_active_app(), 0, 'pointer tap should open Terminal');
-  e.rio_key(27);
-  assert.equal(e.rio_get_ui_state(), 1, 'Escape should return from pointer-opened app');
-  e.rio_pointer(500, 24, 1);
-  e.rio_pointer(500, 120, 0);
-  assert.equal(e.rio_get_ui_state(), 3, 'down swipe from top should open Control Centre');
-  e.rio_key(27);
-  assert.equal(e.rio_get_ui_state(), 1, 'Escape should close Control Centre');
-
-  // Exercise all seven installed built-in apps and their back navigation.
-  const appHashes = new Set();
-  for (let app = 1; app <= 7; app++) {
-    e.rio_key(48 + app);
-    assert.equal(e.rio_get_ui_state(), 2, `app ${app} should open`);
-    assert.equal(e.rio_get_active_app(), app - 1, `app ${app} should be active`);
-    appHashes.add(framebufferHash(e));
-    e.rio_key(27); // Escape -> home
-    assert.equal(e.rio_get_ui_state(), 1, `app ${app} should return to Home`);
-  }
-  assert.equal(appHashes.size, 7, 'each built-in app should render a distinct frame');
-
-  // Exercise the real command dispatcher through the pixel Terminal.
-  e.rio_key(49); // Terminal
-  for (const ch of 'selftest') e.rio_key(ch.charCodeAt(0));
-  e.rio_key(13);
-  assert.equal(e.rio_get_active_app(), 0);
-  framebufferHash(e);
-  const selftestFlags = e.rio_terminal_selftest_flags();
-  assert.ok(selftestFlags & 1, 'selftest summary should appear in Terminal scrollback');
-  assert.ok(selftestFlags & 2, 'all six WASM checks should pass');
-  assert.equal(selftestFlags & 4, 0, 'WASM selftest should not report a failed check');
-
-  // Exercise the standalone host-terminal API through the same real command dispatcher.
   function runCli(command) {
     const encoded = new TextEncoder().encode(command);
     assert.ok(encoded.length <= 1023, 'test command fits CLI buffer');
@@ -122,51 +63,49 @@ async function main() {
     input.fill(0);
     input.set(encoded);
     lastConsole = '';
-    assert.equal(e.rio_cli_execute(encoded.length), 0, `CLI command should execute: ${command}`);
+    assert.equal(e.rio_cli_execute(encoded.length), 0, `CLI command executes: ${command}`);
     return lastConsole;
   }
-  assert.match(runCli('pwd'), /\/home\/user/, 'standalone CLI reports the VFS current directory');
-  assert.match(runCli('uname'), /wasm32 WebAssembly/, 'uname identifies the actual WASM32 target');
-  assert.match(runCli('version'), /MyKernel v1\.13\.0/, 'version reports the synchronized kernel baseline');
-  assert.match(runCli('pages'), /WASM linear-memory pages/, 'page diagnostics identify the WASM page pool');
-  assert.match(runCli('mount'), /browser\/host sector bridge/, 'mount reports the browser/host storage backend');
-  assert.match(runCli('irq status'), /Hardware IRQ: unavailable/, 'IRQ command does not claim browser hardware interrupts');
-  assert.match(runCli('smp'), /Guest CPUs.*not exposed/, 'SMP command reports the browser limitation');
-  assert.match(runCli('thread-demo'), /native kernel-thread context switching is unavailable/, 'thread demo reports its unsupported native operation');
-  assert.match(runCli('apps'), /wallpaper\.rpk/, 'apps lists the seven built-in RPK packages');
-  assert.match(runCli('echo RIOOS_CLI_TEST_OK'), /RIOOS_CLI_TEST_OK/, 'standalone CLI writes actual dispatcher output');
+
+  assert.match(runCli('pwd'), /\/home\/user/, 'pwd reports initial VFS directory');
+  assert.match(runCli('uname'), /wasm32 WebAssembly/, 'uname identifies WASM32');
+  assert.match(runCli('version'), /MyKernel v1\.13\.0/, 'version reports synchronized kernel baseline');
+  assert.match(runCli('pages'), /WASM linear-memory pages/, 'page allocator diagnostics are available');
+  assert.match(runCli('mount'), /browser\/host sector bridge/, 'storage backend is identified accurately');
+  assert.match(runCli('irq status'), /Hardware IRQ: unavailable/, 'no hardware IRQ is claimed');
+  assert.match(runCli('smp'), /Guest CPUs.*not exposed/, 'SMP limitation is reported');
+  assert.match(runCli('thread-demo'), /native kernel-thread context switching is unavailable/, 'native context switch limitation is reported');
+  assert.match(runCli('apps'), /No bundled graphical applications/, 'no GUI apps are bundled');
+  assert.match(runCli('fbinfo'), /text-only WASM32 host terminal/, 'runtime reports terminal-only mode');
+  assert.match(runCli('echo RIOOS_CLI_TEST_OK'), /RIOOS_CLI_TEST_OK/, 'real command dispatcher works');
   runCli('echo RIOOS_PERSISTENCE_OK > /home/user/wasm-cli-test.txt');
-  assert.match(runCli('cat /home/user/wasm-cli-test.txt'), /RIOOS_PERSISTENCE_OK/, 'standalone CLI file redirection and cat work');
-  assert.match(runCli('cd /'), /\r?\n/, 'standalone CLI command can change directory');
+  assert.match(runCli('cat /home/user/wasm-cli-test.txt'), /RIOOS_PERSISTENCE_OK/, 'redirection and file readback work');
+  runCli('cd /');
   const cwdPtr = e.rio_cli_cwd_ptr() >>> 0;
   const cwdMem = new Uint8Array(e.memory.buffer);
   let cwdEnd = cwdPtr;
   while (cwdEnd < cwdMem.length && cwdMem[cwdEnd] !== 0) cwdEnd++;
-  assert.equal(new TextDecoder().decode(cwdMem.subarray(cwdPtr, cwdEnd)), '/', 'CLI prompt path follows cd');
+  assert.equal(new TextDecoder().decode(cwdMem.subarray(cwdPtr, cwdEnd)), '/', 'prompt path follows cd');
 
-  const savedSectorCount = sectors.size;
-  assert.ok(savedSectorCount > 0, 'MyFS should have written persistent sectors');
-
-  // Instantiate a fresh WASM instance over the same sectors to verify reload compatibility.
+  const sectorsAfterWrite = sectors.size;
+  assert.ok(sectorsAfterWrite > 0, 'MyFS writes persistent sectors');
   let second;
   second = await WebAssembly.instantiate(module, createImports(() => second));
-  assert.equal(second.exports.rio_init(), 0, 'filesystem should mount after reload');
+  assert.equal(second.exports.rio_init(), 0, 'filesystem initializes again with the same sector store');
   second.exports.rio_finish_boot();
-  second.exports.rio_key(13);
-  for (let app = 1; app <= 7; app++) {
-    second.exports.rio_key(48 + app);
-    assert.equal(second.exports.rio_get_ui_state(), 2, `reloaded app ${app} should open`);
-    assert.equal(second.exports.rio_get_active_app(), app - 1);
-    second.exports.rio_key(27);
-  }
+  const command = 'cat /home/user/wasm-cli-test.txt';
+  const encoded = new TextEncoder().encode(command);
+  new Uint8Array(second.exports.memory.buffer, second.exports.rio_cli_buffer_ptr() >>> 0, 1024).set(encoded);
+  lastConsole = '';
+  assert.equal(second.exports.rio_cli_execute(encoded.length), 0);
+  assert.match(lastConsole, /RIOOS_PERSISTENCE_OK/, 'MyFS survives runtime reload');
 
-  console.log('PASS: WASM imports/exports and module validation');
-  console.log('PASS: boot, lock screen, Home, framebuffer rendering');
-  console.log('PASS: all 7 built-in apps, pointer/touch navigation and Escape navigation');
-  console.log('PASS: Terminal command dispatcher runs `selftest` with no failed WASM checks');
-  console.log('PASS: host terminal API and WASM-aware command diagnostics use the real command dispatcher');
-  console.log(`PASS: persistence reload (${savedSectorCount} non-zero sectors; all 7 apps reopen)`);
-  console.log(`PASS: runtime smoke checks (${Date.now() - startedAt} ms); host output bytes=${lastConsole.length}`);
+  console.log('PASS: WASM module imports/exports and terminal-only ABI');
+  console.log('PASS: shell command dispatcher, pwd/uname/version/pages/mount');
+  console.log('PASS: WASM platform limitations and no-UI/no-app mode');
+  console.log('PASS: echo, redirection, cat, cd and current-directory API');
+  console.log(`PASS: MyFS persistence reload (${sectorsAfterWrite} non-zero sectors)`);
+  console.log(`PASS: runtime smoke checks (${Date.now() - startedAt} ms)`);
 }
 
 main().catch(error => { console.error(error.stack || error); process.exitCode = 1; });

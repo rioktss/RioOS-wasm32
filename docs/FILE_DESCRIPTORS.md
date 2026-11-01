@@ -46,4 +46,4 @@ The shell's text pipeline parser is not a general ELF-to-ELF process pipeline.
 
 ## Validation
 
-Run `bash tests/run_host_tests.sh` for the file-descriptor and syscall host regressions. These tests validate the shared module with test doubles; they do not enable native ELF execution in the browser.
+Run `python3 tests/run_host_tests.py` for the file-descriptor and syscall host regressions. These tests validate the shared module with test doubles; they do not enable native ELF execution in the browser.

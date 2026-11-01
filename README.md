@@ -1,180 +1,109 @@
-<<<<<<< HEAD
-# RioOS - MyKernel v1.11.0 (wasm32)
+# MyKernel WASM32 — terminal-only edition
 
-> A lightweight experimental kernel that boots directly in your browser!
+MyKernel WASM32 menjalankan command dispatcher dan subsistem portable RioOS di WebAssembly 32-bit. Edisi ini sengaja **tanpa UI grafis, tanpa framebuffer, dan tanpa paket aplikasi RPK**. Antarmuka yang tersedia hanya shell terminal.
 
-### 🚀 Try it Live: https://rioktss.github.io/RioOS-wasm32/
+## Persyaratan
 
-No QEMU, no install, no compile. Just click and boot in 17 seconds.
+- LLVM/Clang (`clang++`) dengan target `wasm32-unknown-unknown`.
+- LLVM LLD (`wasm-ld`).
+- Python 3.
+- Node.js untuk menjalankan shell host.
+- Python 3 juga dipakai untuk menyajikan terminal browser secara lokal.
 
-![MyKernel](https://img.shields.io/badge/Kernel-MyKernel%20v1.11.0-blue)
-![Arch](https://img.shields.io/badge/Arch-wasm32-orange)
-![Platform](https://img.shields.io/badge/Platform-Browser-black)
-![License](https://img.shields.io/badge/License-MIT-green)
-
-### What is RioOS?
-
-RioOS is an experimental kernel built on top of MyKernel, ported to WebAssembly (wasm32) to run on any modern browser. Built entirely from a phone in Bandung, Indonesia.
-
-**System Info:**
-- **OS:** RioOS
-- **Kernel:** Mykernel v1.11.0
-- **Architecture:** wasm32
-- **Machine:** Browser / WebAssembly host
-- **RAM:** 32 MiB
-- **Filesystem:** MyFS (persistent)
-- **License:** MIT
-
-### Quick Start
-
-1. Visit **https://rioktss.github.io/RioOS-wasm32/**
-2. Wait for boot sequence
-3. Type `help` to see available commands
-
-### Available Commands
-
-- `version` - Show system info
-- `help` - List all commands
-- `ls`, `pwd`, and more
-
-### Source Code
-
-```bash
-git clone https://github.com/rioktss/RioOS-wasm32
-=======
-# RioOS — MyKernel WASM32
-
-<p align="center">
-  <strong>RioOS · MyKernel v1.13.0 · WebAssembly 32-bit</strong><br>
-  Port browser dari source MyKernel, dengan terminal, MyFS, shell, framebuffer, dan aplikasi bawaan.
-</p>
-
-<p align="center">
-  <a href="./docs/BUILD_AND_RUN.md">Build &amp; Run</a> ·
-  <a href="./docs/ARCHITECTURE.md">Architecture</a> ·
-  <a href="./docs/WASM32_PORT.md">WASM32 Port</a> ·
-  <a href="./docs/LEARN.md">Learning Guide</a> ·
-  <a href="./docs/ROADMAP.md">Roadmap</a>
-</p>
-
-> 🇮🇩 Made in Indonesia. Built to be studied, improved, and shared.
-
-## Tentang proyek
-
-RioOS WASM32 adalah port browser dari proyek MyKernel. Source bersama disinkronkan dengan baseline MyKernel **v1.13.0**. Kode berjalan sebagai modul WebAssembly di browser atau Node.js; tidak melakukan boot bare-metal dan tidak mengemulasikan mesin AArch64.
-
-Port ini mempertahankan subsistem portable yang dapat dijalankan di sandbox WASM, sekaligus menyediakan adapter untuk fasilitas host seperti waktu, penyimpanan, terminal, dan framebuffer. Bagian yang memerlukan privilege atau perangkat QEMU tidak dipalsukan sebagai fitur native.
-
-## Quick start
-
-Toolchain yang dibutuhkan: Clang/Clang++, `wasm-ld` (LLD), Python 3, dan Node.js 18+. Untuk mode UI browser, gunakan browser modern dengan WebAssembly, Canvas 2D, dan `localStorage`.
-
-### Linux
-
-```bash
-bash linux/build.sh
-bash linux/run.sh             # Shell RioOS di terminal host
-bash linux/run-terminal.sh    # Terminal browser
-```
-
-### Termux Android
+Termux:
 
 ```bash
 pkg install clang lld python nodejs
+```
+
+## Build
+
+Build dipisahkan dari proses menjalankan program. Pilih skrip sesuai platform:
+
+```bash
+# Termux / Android
 bash termux/build.sh
-bash termux/run.sh
-bash termux/run-terminal.sh
-```
 
-### macOS
+# Linux
+bash linux/build.sh
 
-```bash
+# macOS
 bash macos/build.sh
-bash macos/run.sh
-bash macos/run-terminal.sh
-```
 
-### Windows PowerShell
-
-```powershell
+# Windows PowerShell (dengan Python 3, LLVM/LLD tersedia di PATH)
 .\windows\build.ps1
-.\windows\run.ps1
-.\windows\run-terminal.ps1
 ```
 
-Windows build menggunakan Git Bash atau WSL dengan Clang, LLD, dan Python 3 terpasang. Node.js diperlukan untuk `run.ps1`; Python 3 diperlukan untuk menyajikan browser terminal.
-
-### Mode browser framebuffer
-
-Mode UI pixel dengan lock screen, Home, Control Centre, dan tujuh aplikasi tersedia melalui:
+Builder menghasilkan `rioos.wasm` langsung di root proyek. Untuk build bersih, tambahkan `--clean`:
 
 ```bash
-bash wasm/run-ui.sh
+bash termux/build.sh --clean
 ```
 
-Script akan membuka halaman `/ui.html`. Bila server terminal sudah berjalan, halaman UI dapat diakses pada port yang sama dengan menambahkan `/ui.html` ke URL server. Pada Termux, script mencoba membuka URL menggunakan `termux-open-url`; jika tidak berhasil, buka manual di browser.
+Alternatifnya, builder internal dapat dipanggil langsung dengan `python3 wasm/build.py`.
 
-## Mode menjalankan
+## Jalankan
 
-| Entry point | Fungsi |
-|---|---|
-| `*/run.sh` | Shell interaktif RioOS di terminal host melalui Node.js, memakai command dispatcher kernel yang sama. |
-| `*/run-terminal.sh` | Menyajikan terminal browser di `http://127.0.0.1:8080/`. Perintah diproses oleh modul WASM, bukan simulator JavaScript. |
-| `wasm/run-ui.sh` | Menyajikan framebuffer UI 1024×768 melalui Canvas; termasuk lock screen, Home, Control Centre, dan tujuh aplikasi. |
+Build dahulu, lalu jalankan salah satu mode:
 
-Terminal browser menyimpan sektor MyFS ke `localStorage`. Mode Node menyimpan sektor di `~/.rioos-wasm32/myfs-sectors.json`; ubah lokasi dengan `RIOOS_DATA_DIR`. Penyimpanan browser mengikuti kuota dan kebijakan penghapusan data situs dari browser.
+```bash
+# Shell interaktif di terminal host (Node.js)
+bash run.sh
 
-## Fitur yang dipertahankan
+# Terminal browser lokal (HTTP server)
+bash run-terminal.sh
+```
 
-- Kernel command dispatcher terbaru, shell, prompt, environment (`export`, `unset`), history, file descriptors, dan syscall compatibility layer.
-- MyFS serta VFS dengan operasi file/direktori dan backend penyimpanan sektor.
-- IPv4/ARP/ICMP/UDP/DNS/TCP stack source yang sama dengan baseline utama; perangkat jaringan riil tetap bergantung pada backend platform dan belum tersedia di browser.
-- Process table, metadata proses, lifecycle PID, scheduler policy, logical scheduler, dan diagnostic/status command.
-- Generic page allocator 4 KiB dengan pool linear-memory WASM dan statistik alokasi.
-- Framebuffer renderer 1024×768, lock screen, Home, Control Centre, wallpaper lokal, serta aplikasi Calculator, Clock, Files, Launcher, Settings, Terminal, dan Wallpaper.
-- Terminal browser dan host terminal yang menggunakan dispatcher kernel aktual, bukan implementasi command palsu.
-- Smoke test WASM, host regression tests, test matrix, dokumentasi, dan wrapper build/run tiap platform.
+Entry point per-platform juga tersedia: `bash termux/run.sh`, `bash termux/run-terminal.sh`, dan padanannya di folder `linux/` serta `macos/`. Di Windows gunakan `windows/run.ps1` atau `windows/run-terminal.ps1`.
 
-## Batas platform WASM32
+## Hosting statis
 
-WASM32 browser tidak mempunyai akses ke EL1/EL0 AArch64, MMU fisik, exception vector, GIC, IRQ hardware, VirtIO, perangkat blok/jaringan QEMU, atau kemampuan untuk menjalankan AArch64 ELF. Scheduler yang tersedia mengelola metadata dan pemilihan PID secara logis; ini bukan context switch CPU. Thread native tidak dijalankan paralel. Backend jaringan tidak terhubung ke VirtIO-Net.
-
-Fitur-fitur tersebut ditandai tidak tersedia oleh adapter, bukan diklaim aktif. Lihat [WASM32 Port](./docs/WASM32_PORT.md) untuk matriks dukungan yang lebih rinci.
-
-## Struktur proyek
+`index.html` dan `rioos.wasm` berada langsung di root proyek. Upload keduanya ke root hosting (misalnya `public_html/`):
 
 ```text
-mykernel-wasm32/
-├── README.md
-├── .gitignore
-├── boot/                 # Catatan entry point WASM (tanpa boot assembly AArch64)
-├── drivers/              # Framebuffer dan font browser
-├── include/              # Public headers bersama + API framebuffer/UI WASM
-├── kernel/               # Command dispatcher, syscall, diagnostics, history, env
-├── memory/               # Generic page allocator + WASM linear-memory allocator
-├── process/              # Process metadata dan scheduler policy/logis
-├── fs/ net/              # MyFS/VFS dan network stack portable
-├── storage/              # Area data/runtime; image lokal tidak ikut source control
-├── ui/ userspace/        # Framebuffer UI dan tujuh paket aplikasi RPK
-├── tools/ tests/         # Asset generator, host tests, smoke/release checks
-├── wasm/                 # Platform adapter, build, browser pages, runner, tests
-├── linux/ termux/ macos/ # build.sh, run.sh, run-terminal.sh
-├── windows/              # build.ps1, run.ps1, run-terminal.ps1
-└── docs/                 # Dokumentasi proyek dan batas port WASM32
+public_html/
+├── index.html
+└── rioos.wasm
 ```
 
-## Build dan validasi
+Jangan pindahkan `index.html` ke subfolder tanpa menyesuaikan path modul. Browser mengambil WebAssembly dengan path relatif `./rioos.wasm`.
+
+## Entry point dan builder
+
+| File | Fungsi |
+|---|---|
+| `linux/build.sh`, `termux/build.sh`, `macos/build.sh` | Build WASM32 pada platform terkait. |
+| `windows/build.ps1` | Build WASM32 dari PowerShell. |
+| `run.sh` | Menjalankan shell RioOS pada terminal host melalui Node.js. |
+| `run-terminal.sh` | Menyajikan terminal browser melalui HTTP lokal. |
+| `index.html` | Halaman terminal browser; berada di root hosting. |
+| `rioos.wasm` | Hasil kompilasi WebAssembly. |
+| `wasm/build.py` | Builder internal C++17. |
+| `wasm/terminal.cjs` | Host terminal Node.js dengan penyimpanan MyFS persisten. |
+| `wasm/test_wasm.cjs` | Smoke test runtime WASM. |
+
+## Fitur terminal
+
+- Shell dan command dispatcher C++ yang sama dengan source MyKernel.
+- MyFS/VFS dan penyimpanan sektor persisten.
+- Environment, command history, file descriptors, syscall compatibility layer.
+- Process metadata, logical scheduler, dan page allocator pada linear memory WASM.
+- Source network stack portable; akses jaringan browser tidak otomatis terhubung ke perangkat jaringan.
+- Perintah diagnostik untuk menunjukkan batas fitur platform.
+
+## Batas WASM32
+
+Browser WASM tidak menyediakan MMU fisik AArch64, EL0/EL1, GIC, IRQ hardware, VirtIO, akses perangkat mentah, SMP native, atau eksekusi ELF AArch64. Scheduler yang ada mengelola metadata proses dan bukan context switch CPU. Build ini tidak menyertakan UI grafis atau aplikasi RPK.
+
+## Pengujian
 
 ```bash
-bash wasm/build.sh
 node wasm/test_wasm.cjs
+python3 tests/run_host_tests.py
 ```
 
-Build menggunakan `-Wall -Wextra -Werror`; test memeriksa module WebAssembly, boot, render framebuffer, navigasi UI, seluruh tujuh aplikasi, command dispatcher, self-test, dan pemulihan data MyFS setelah reload. Jalankan tes pada browser sasaran juga karena smoke test Node tidak menggantikan pengujian lintas-browser.
-
-Perintah build menerima `--help`, `--clean`, `--verbose` / `-v`, dan `--run`.
+Pengujian Node menguji ABI WASM, command dispatcher, operasi shell, dan persistensi MyFS. Smoke test Node bukan pengganti pengujian pada browser hosting sebenarnya.
 
 ## Lisensi
 
-RioOS dirilis di bawah [MIT License](./docs/LICENSE).
->>>>>>> 9e1c35b (RioOS update)
+MIT — lihat [`docs/LICENSE`](docs/LICENSE).

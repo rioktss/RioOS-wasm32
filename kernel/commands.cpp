@@ -1,8 +1,6 @@
 #include "commands.h"
 
 #include "uart.h"
-#include "fb.h"
-#include "ui.h"
 #include "console.h"
 #include "memory.h"
 #include "string.h"
@@ -1292,15 +1290,16 @@ static void command_fbinfo()
 {
     uart_puts("Framebuffer diagnostics\r\n------------------------\r\nBackend : ");
 #if defined(__wasm32__)
-    uart_puts("browser Canvas bridge\r\n");
+    uart_puts("text-only WASM32 host terminal (no framebuffer)\r\n");
+    uart_puts("Surface : not present\r\nGeometry: 0x0 (text terminal only)\r\nTerminal: ");
 #else
     uart_puts(fb_has_display() ? "display attached (QEMU window)\r\n" : "none (serial console only)\r\n");
-#endif
     uart_puts("Surface : ");
     uart_puts(fb_is_ready() ? "initialized\r\n" : "not initialized\r\n");
     uart_puts("Geometry: "); print_u64((uint64_t)fb_get_width());
     uart_putc('x'); print_u64((uint64_t)fb_get_height());
     uart_puts(" pixels, 32 bpp\r\nTerminal: ");
+#endif
     if (console_active())
     {
         print_u64((uint64_t)console_columns()); uart_putc('x'); print_u64((uint64_t)console_rows());
@@ -1400,7 +1399,7 @@ static void command_help()
         "  sched                Show scheduler status\r\n"
         "  exec <file>          Execute an ELF program\r\n"
         "  nano <file>          Text editor (relative to current dir)\r\n"
-        "  calc [expr]          Calculator app (interactive if no expr)\r\n"
+        "  calc [expr]          Run calculator ELF (native targets only)\r\n"
         "  elf                  Show ELF loader status\r\n"
         "  syscall <test>        Test syscall interface\r\n"
         "  user [password]      Login as user (password: 123)\r\n"
@@ -1414,7 +1413,7 @@ static void command_help()
         "  diskread <sector>    Read and inspect a 512-byte sector\r\n"
         "  diskwrite <sector> <text>  Write text to a sector\r\n"
         "  diskflush            Flush disk cache\r\n"
-        "  apps                 List bundled user programs\r\n"
+        "  apps                 List bundled user programs (none in WASM32)\r\n"
         "  uname                Show kernel identity\r\n"
         "  whoami               Show current security domain\r\n"
         "  net                  Show network status\r\n"
@@ -1437,7 +1436,7 @@ static void command_help()
         "  irq [status|on|off|oneshot|stagec|staged|selftest] [hz]  Timer IRQ control/tests\r\n"
     );
 #if defined(__wasm32__)
-    uart_puts("WASM32 note: `exec`, `nano`, `calc`, `userdemo` and native ELF commands require AArch64 execution, which the browser sandbox does not provide. Use the seven built-in RPK apps from the framebuffer UI.\r\n");
+    uart_puts("WASM32 note: this is a text-only build with no graphical UI or bundled RPK apps. Native AArch64 ELF execution is unavailable in the browser sandbox.\r\n");
     uart_puts("WASM32 note: `mmu`, `level`, `irq`, `smp` and `thread-demo` report unavailable native hardware/runtime facilities; `pages` reports the WASM linear-memory page pool.\r\n");
 #endif
 }
@@ -2160,14 +2159,7 @@ static void command_diskflush()
 static void command_apps()
 {
 #if defined(__wasm32__)
-    uart_puts("Built-in RioOS applications\r\n----------------------------\r\n");
-    uart_puts("calculator.rpk  - Calculator\r\n");
-    uart_puts("clock.rpk       - Clock\r\n");
-    uart_puts("files.rpk       - File Manager\r\n");
-    uart_puts("launcher.rpk    - App Launcher\r\n");
-    uart_puts("pengaturan.rpk  - Settings\r\n");
-    uart_puts("terminal.rpk    - Terminal\r\n");
-    uart_puts("wallpaper.rpk   - Wallpaper\r\n");
+    uart_puts("No bundled graphical applications are installed in this text-only WASM32 build.\r\n");
 #else
     uart_puts("Bundled user programs\r\n----------------------\r\n");
     uart_puts("/bin/init.elf    - userspace self-test/demo\r\n");
@@ -2531,11 +2523,8 @@ static void command_selftest()
 
     ++total;
     {
-        int ok = fb_is_ready() && fb_get_width() > 0 && fb_get_height() > 0;
-        for (int app = 0; app < UI_APP_COUNT; ++app)
-            if (!ui_app_package_valid(app)) ok = 0;
-        if (ok) { uart_puts("[PASS] framebuffer and all 7 built-in apps\r\n"); ++pass; }
-        else uart_puts("[FAIL] framebuffer and built-in apps\r\n");
+        uart_puts("[PASS] text-only terminal runtime (no UI/apps linked)\r\n");
+        ++pass;
     }
 
     uart_puts("[SKIP] GIC interrupts, hardware MMU, native CPU context switching, AArch64 ELF execution and VirtIO devices are unavailable in browser WASM32.\r\n");

@@ -1,30 +1,25 @@
-# Terminal RioOS WASM32
+# Terminal RioOS
 
-RioOS menyediakan dua jalur terminal yang menggunakan command dispatcher kernel yang sama.
+MyKernel WASM32 hanya menyediakan shell teks. Browser terminal berada di `index.html` pada root proyek; host terminal Node.js dijalankan melalui `run.sh`.
 
-| Runner | Perilaku |
+## Build dan runner
+
+Build terpisah dari runner:
+
+| Perintah | Fungsi |
 |---|---|
-| `linux/run.sh`, `termux/run.sh`, `macos/run.sh` | Shell interaktif di terminal host melalui Node.js. |
-| `linux/run-terminal.sh`, `termux/run-terminal.sh`, `macos/run-terminal.sh` | Terminal browser di `http://127.0.0.1:8080/`. |
-| `windows/run.ps1` | Shell Node.js di PowerShell. |
-| `windows/run-terminal.ps1` | Terminal browser melalui Python HTTP server. |
-| `wasm/run-ui.sh` | Framebuffer UI, bukan terminal teks, pada `/ui.html`. |
+| `bash termux/build.sh` | Build untuk Termux/Android. |
+| `bash linux/build.sh` | Build untuk Linux. |
+| `bash macos/build.sh` | Build untuk macOS. |
+| `bash run.sh` | Shell interaktif pada terminal host. |
+| `bash run-terminal.sh` | HTTP server untuk terminal browser pada `/`. |
 
-## Command dispatcher
-
-Browser terminal dan host terminal meneruskan command ke fungsi export `rio_cli_execute()`. JavaScript/Node hanya menangani input, output, terminal history, dan host storage; command shell dieksekusi oleh kode C++ RioOS di WebAssembly.
-
-Beberapa operasi yang memerlukan input password interaktif atau perangkat hardware tertentu dapat dibatasi oleh host adapter. Perintah diagnostik akan melaporkan capability sesuai target browser.
+Jalankan build satu kali sebelum menjalankan shell atau server browser. Hasil build `rioos.wasm` disimpan di root proyek.
 
 ## Penyimpanan
 
-Mode browser menyimpan MyFS per sektor di `localStorage`. Mode Node menyimpan data JSON di `~/.rioos-wasm32/myfs-sectors.json`. Hapus data situs atau file tersebut hanya bila memang ingin menghapus filesystem virtual.
+Mode browser menyimpan sektor MyFS pada `localStorage` browser. Mode Node.js menyimpan data di `~/.rioos-wasm32/myfs-sectors.json`; lokasi dapat diubah dengan `RIOOS_DATA_DIR`. Data browser mengikuti batas kuota dan kebijakan penyimpanan browser.
 
-## Shortcut browser
+## Input browser
 
-- `Enter` — kirim perintah.
-- `Arrow Up` / `Arrow Down` — navigasi history terminal.
-- `Ctrl+L` — clear tampilan terminal.
-- `Ctrl+C` — batalkan input saat ini (tidak mematikan proses browser).
-
-Lihat kontrol UI pada footer halaman `/ui.html` untuk navigasi lock screen dan aplikasi.
+Fokuskan kolom perintah, ketik perintah shell, lalu tekan Enter. Tombol Clear, Copy, dan Restart tersedia pada halaman terminal. Tidak ada navigasi aplikasi, layar Home, Control Centre, atau framebuffer UI.

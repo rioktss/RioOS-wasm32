@@ -1,33 +1,21 @@
-# FAQ — RioOS WASM32
+# FAQ
 
-## Apakah RioOS WASM32 adalah versi bare-metal?
+## Bagaimana build MyKernel WASM32?
 
-Bukan. Ini adalah build WebAssembly yang berjalan di dalam browser atau Node.js. Versi bare-metal AArch64 adalah target terpisah.
+Pilih skrip platform: `bash termux/build.sh`, `bash linux/build.sh`, atau `bash macos/build.sh`. Untuk Windows PowerShell gunakan `windows/build.ps1`. Pastikan Clang, LLD, dan Python 3 tersedia.
 
-## Apakah harus memasang QEMU?
+## Bagaimana menjalankan MyKernel WASM32?
 
-Tidak. Build dan run WASM32 tidak menggunakan QEMU. Toolchain yang diperlukan adalah Clang/Clang++, LLD, Python 3, serta Node.js untuk host terminal dan tes.
+Setelah build berhasil, gunakan `bash run.sh` untuk shell terminal host atau `bash run-terminal.sh` untuk terminal browser lokal. Pada Windows gunakan `windows/run.ps1` atau `windows/run-terminal.ps1`.
 
-## Apakah UI pixel lama masih ada?
+## Di mana index hosting?
 
-Ya. Framebuffer 1024×768, lock screen, Home, Control Centre, serta tujuh aplikasi RPK tersedia di `wasm/run-ui.sh` melalui halaman `/ui.html`. Terminal browser berada di `/` melalui `run-terminal.sh`.
+`index.html` berada di root proyek. Upload `index.html` dan `rioos.wasm` ke root hosting yang sama.
 
-## Apakah perintah terminal benar-benar menjalankan kernel?
+## Apakah ada UI atau aplikasi grafis?
 
-Command dijalankan oleh command dispatcher C++ di modul WASM melalui `rio_cli_execute()`. Halaman browser dan Node runner hanya menjadi host input/output dan storage bridge.
+Tidak. Edisi ini sengaja terminal-only dan tidak menyertakan framebuffer UI maupun paket aplikasi RPK.
 
-## Apakah internet, ping, dan HTTP aktif?
+## Apakah browser WASM menyediakan MMU, SMP dan IRQ fisik?
 
-Source network stack TCP/UDP/IP disinkronkan, tetapi browser adapter tidak menyediakan raw NIC atau VirtIO-Net. Karena itu jangan menganggap perintah jaringan guest memiliki konektivitas internet.
-
-## Apakah WASM32 mendukung MMU, process switching, thread, atau SMP?
-
-Tidak. Port menyediakan page allocator dan process/scheduler metadata yang portable. Browser sandbox tidak menyediakan physical MMU AArch64, exception level, native CPU stack switching, atau guest multicore.
-
-## Di mana data file disimpan?
-
-Browser terminal dan UI menggunakan `localStorage` browser. Node host terminal memakai `~/.rioos-wasm32/myfs-sectors.json`, atau lokasi yang ditentukan `RIOOS_DATA_DIR`.
-
-## Bagaimana menjalankan test?
-
-Jalankan `bash wasm/build.sh` lalu `node wasm/test_wasm.cjs`. Ini memeriksa build target, boot, framebuffer, navigasi UI, aplikasi bawaan, command dispatcher dan persistence reload. Tes ini tidak menjamin tidak ada bug pada semua lingkungan.
+Tidak. WASM berjalan dalam sandbox browser dan tidak memiliki akses ke fasilitas hardware bare-metal AArch64.

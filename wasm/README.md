@@ -1,25 +1,11 @@
-# WASM32 Platform Layer
+# WASM32 runtime
 
-Folder ini berisi adapter browser/Node, build target wasm32, terminal browser, framebuffer browser UI, runner, dan smoke test.
+Lapisan ini khusus untuk target WASM32 terminal-only. Tidak ada halaman UI grafis, framebuffer, paket RPK, atau runner UI.
 
-- `build.sh` — compile source bersama MyKernel v1.13.0 dan adapter WASM, lalu hasilkan `dist/rioos.wasm` serta halaman `dist/index.html` / `dist/ui.html`.
-- `platform.cpp` — host compatibility layer (storage sectors, clock, console output, dan capability status).
-- `port.cpp` — exported boot, input, framebuffer, dan CLI APIs.
-- `index.html` — browser terminal; command dieksekusi oleh dispatcher C++ di WASM.
-- `ui.html` — framebuffer 1024×768, lock screen, Home dan aplikasi di Canvas.
-- `terminal.cjs` — host terminal Node.js yang memakai module WASM dan persistent JSON sector store.
-- `test_wasm.cjs` — integration smoke tests.
+- `build.py`: builder C++17 yang menghasilkan `rioos.wasm` di root proyek.
+- `platform.cpp`: adapter host untuk console, storage sectors, clock, dan fasilitas platform.
+- `port.cpp`: boot runtime dan API command-line yang diekspor ke host.
+- `terminal.cjs`: terminal host Node.js.
+- `test_wasm.cjs`: smoke test modul WebAssembly dan shell.
 
-## Run
-
-```bash
-bash wasm/build.sh
-node wasm/test_wasm.cjs
-bash wasm/run.sh          # Host terminal Node.js
-bash wasm/run-terminal.sh # Browser terminal
-bash wasm/run-ui.sh        # Browser framebuffer UI
-```
-
-Gunakan `PORT=9000` untuk port berbeda. `BIND=0.0.0.0` dapat dipakai bila halaman ingin diakses dari perangkat lain pada jaringan lokal; jangan expose server ke jaringan yang tidak dipercaya.
-
-WASM port tidak menyediakan hardware AArch64, VirtIO, MMU/GIC, native context switching atau SMP. Rincian ada di `docs/WASM32_PORT.md`.
+Halaman browser utama adalah `../index.html` dan sengaja berada di root agar bisa langsung dipasang pada root hosting statis. File `../rioos.wasm` adalah modul yang dimuat halaman tersebut.

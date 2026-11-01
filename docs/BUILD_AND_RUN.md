@@ -1,144 +1,67 @@
-# Build & Run — RioOS WASM32
+# Build dan menjalankan MyKernel WASM32
 
-## 1. Gambaran umum
+## Persyaratan
 
-Port ini dikompilasi menjadi `wasm/dist/rioos.wasm`. Modul yang sama dapat dijalankan oleh Node.js (terminal host) atau browser (terminal browser / framebuffer UI). Build tidak memerlukan QEMU atau bootloader.
+- Clang/Clang++ dengan target `wasm32-unknown-unknown`.
+- `wasm-ld` dari LLVM LLD.
+- Python 3.
+- Node.js untuk mode terminal host.
+- Python 3 untuk HTTP server terminal browser lokal.
 
-## 2. Dependensi
+Di Termux, pasang toolchain dengan `pkg install clang lld python nodejs`.
 
-| Tool | Kegunaan |
-|---|---|
-| Clang / Clang++ | Kompilasi C++17 freestanding ke `wasm32-unknown-unknown` |
-| LLD (`wasm-ld`) | Link modul WebAssembly |
-| Python 3 | Menghasilkan assembly asset dari paket RPK/BMP |
-| Node.js 18+ | Host terminal dan smoke test |
-| Browser modern | WebAssembly, Canvas 2D, `localStorage` untuk mode browser |
+## Build terpisah
 
-Di Termux, paket umumnya tersedia melalui:
+Build dilakukan secara eksplisit melalui skrip platform:
 
 ```bash
-pkg update
-pkg install clang lld python nodejs
+bash termux/build.sh   # Termux / Android
+bash linux/build.sh    # Linux
+bash macos/build.sh    # macOS
 ```
 
-Di Linux/macOS gunakan package manager masing-masing. Periksa tool:
-
-```bash
-clang++ --version
-wasm-ld --version
-python3 --version
-node --version
-```
-
-Windows memerlukan Git Bash atau WSL untuk menjalankan build Bash, serta PowerShell untuk wrapper `.ps1`.
-
-## 3. Build
-
-Dari root repository:
-
-```bash
-bash linux/build.sh
-# atau bash termux/build.sh / bash macos/build.sh
-```
-
-PowerShell:
+Di Windows PowerShell:
 
 ```powershell
 .\windows\build.ps1
 ```
 
-Build menyimpan artefak runtime di `wasm/dist/`. Object file sementara berada di `wasm/dist/obj/`.
+Gunakan `--clean` untuk build bersih, misalnya `bash termux/build.sh --clean`. Builder menghasilkan `rioos.wasm` langsung di root proyek. Builder internalnya adalah `wasm/build.py`.
 
-Opsi:
+## Runner
 
-| Opsi | Fungsi |
-|---|---|
-| `--help`, `-h` | Tampilkan bantuan |
-| `--clean` | Hapus object file dan modul WASM lama sebelum build |
-| `--verbose`, `-v` | Cetak perintah kompilasi secara detail |
-| `--run` | Build, lalu masuk ke mode terminal host |
-
-Contoh:
+Jalankan setelah build berhasil:
 
 ```bash
-bash wasm/build.sh --clean
-bash wasm/build.sh --verbose
-bash wasm/build.sh --run
+bash run.sh
+bash run-terminal.sh
 ```
 
-Compiler dan linker dapat dioverride melalui `CLANG`, `CLANGXX`, `WASM_LD`, dan `PYTHON`.
+`run.sh` menjalankan shell pada terminal host menggunakan Node.js. `run-terminal.sh` menjalankan HTTP server lokal agar terminal browser dapat dibuka di `/`. Keduanya tidak melakukan build otomatis; bila `rioos.wasm` belum ada, jalankan skrip build platform terlebih dahulu.
 
-## 4. Menjalankan terminal host
+Di Windows gunakan `windows/run.ps1` untuk shell host atau `windows/run-terminal.ps1` untuk browser.
 
-```bash
-bash linux/run.sh
-# Termux: bash termux/run.sh
-# macOS: bash macos/run.sh
-# Windows: .\windows\run.ps1
+## Hosting statis
+
+File deploy harus berada berdampingan pada root hosting:
+
+```text
+public_html/
+├── index.html
+└── rioos.wasm
 ```
 
-Runner menggunakan Node.js dan `wasm/terminal.cjs`. Command yang diketik diproses oleh `rio_cli_execute()` yang masuk ke command dispatcher kernel. Backend disk lokal menggunakan JSON sektor di `~/.rioos-wasm32/myfs-sectors.json`.
+`index.html` sudah berada di root repository dan memuat `./rioos.wasm`. Upload kedua file tersebut ke `public_html` atau document root layanan hosting.
 
-Ubah direktori data dengan:
-
-```bash
-RIOOS_DATA_DIR="$HOME/rioos-data" bash linux/run.sh
-```
-
-## 5. Menjalankan terminal browser
-
-```bash
-bash linux/run-terminal.sh
-```
-
-Secara default server berjalan pada `127.0.0.1:8080`. Ganti port atau alamat bind:
-
-```bash
-PORT=9000 BIND=0.0.0.0 bash wasm/run-terminal.sh
-```
-
-Perintah terminal browser dieksekusi di WASM. Data MyFS disimpan menggunakan browser `localStorage`, dengan prefix key `rioos-wasm32-myfs-v1:`. Jangan gunakan browser private/incognito bila data harus tetap ada setelah sesi ditutup. Menghapus data situs dapat menghapus disk virtual ini.
-
-Di Windows:
-
-```powershell
-.\windows\run-terminal.ps1
-```
-
-## 6. Menjalankan framebuffer UI
-
-```bash
-bash wasm/run-ui.sh
-```
-
-Halaman ini tersedia sebagai `/ui.html` dari server yang sama. UI menampilkan framebuffer 1024×768 di Canvas. Gunakan tap/click untuk membuka item; keyboard mendukung Arrow keys, Enter, dan Escape. UI terdiri dari lock screen, Home, Control Centre, dan tujuh aplikasi bawaan.
-
-Runner UI browser terpisah dari terminal host Node. Server harus tetap berjalan selama halaman digunakan.
-
-## 7. Smoke test
+## Pengujian
 
 ```bash
 node wasm/test_wasm.cjs
+python3 tests/run_host_tests.py
 ```
 
-Test ini memuat file WASM melalui Node, memeriksa export/import, boot dan render, navigasi UI, membuka tujuh aplikasi, menjalankan `selftest`, menguji dispatcher CLI, lalu membuat instance baru untuk memastikan data MyFS dapat dipulihkan.
+Builder memakai C++17, `-Wall -Wextra -Werror`, dan menghasilkan WebAssembly pada root proyek.
 
-Build strict menggunakan `-Wall -Wextra -Werror`. Test yang lulus hanya menjamin jalur yang tercakup; pengujian di browser nyata tetap diperlukan.
+## Batas platform
 
-## 8. Troubleshooting
-
-**`wasm-ld: command not found`** — instal LLD atau set `WASM_LD` ke executable `wasm-ld`.
-
-**`clang++: unknown target wasm32-unknown-unknown`** — gunakan distribusi Clang dengan backend WebAssembly.
-
-**`WebAssembly.instantiate` gagal** — rebuild dengan `bash wasm/build.sh`, pastikan `rioos.wasm` dan halaman HTML berasal dari folder `wasm/dist` yang sama, lalu reload browser.
-
-**Browser menampilkan storage error** — periksa izin penyimpanan situs dan kuota `localStorage`. Smoke test Node menggunakan file storage tersendiri.
-
-**Port 8080 dipakai** — jalankan dengan `PORT=9000`.
-
-**Halaman tidak dapat mengambil `rioos.wasm`** — akses melalui HTTP server runner, jangan membuka `index.html` atau `ui.html` langsung sebagai `file://`.
-
-## 9. Batas runtime
-
-Browser tidak mengekspos hardware MMU/GIC/IRQ, AArch64 EL, VirtIO, dan raw device. Lihat [WASM32 Port](WASM32_PORT.md) untuk pemisahan fitur portable dan fitur khusus native.
+Target browser tidak memiliki MMU/GIC/IRQ fisik, VirtIO, SMP native, atau eksekusi ELF AArch64. Build ini hanya menyediakan shell teks dan tidak menyertakan UI maupun aplikasi grafis.

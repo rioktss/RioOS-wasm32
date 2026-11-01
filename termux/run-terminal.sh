@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-exec bash "$ROOT/wasm/run-terminal.sh" "$@"
+exec bash "$ROOT/run-terminal.sh" "$@"
