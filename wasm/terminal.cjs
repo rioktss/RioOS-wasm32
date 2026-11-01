@@ -111,7 +111,7 @@ async function main() {
   process.stdout.write('RioOS WASM32 · standalone terminal edition\n');
   process.stdout.write('Built-in RioOS shell + MyFS persistent storage. Type `help` for commands.\n');
   process.stdout.write(`MyFS: ${sectors.size} saved sectors · ${dataDir}\n`);
-  process.stdout.write('Note: browser-only UI apps can be launched with: bash run-ui.sh\n\n');
+  process.stdout.write('Note: browser-only UI apps can be launched with: bash wasm/run-ui.sh\n\n');
 
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout, terminal: true, historySize: 1000 });
   let closing = false;
@@ -136,7 +136,7 @@ async function main() {
     if (!trimmed) { showPrompt(rl); return; }
     if (/^(exit|logout|quit)$/i.test(trimmed)) { close(); return; }
     if (/^(nano|calc|exec|userdemo|user|su)(?:\s|$)/i.test(trimmed)) {
-      process.stdout.write(`${trimmed.split(/\s+/, 1)[0]}: interactive ELF execution is not available in the WASM32 host terminal. Use bash run-ui.sh for RioOS's graphical apps.\n`);
+      process.stdout.write(`${trimmed.split(/\s+/, 1)[0]}: interactive ELF execution is not available in the WASM32 host terminal. Use bash wasm/run-ui.sh for RioOS's graphical apps.\n`);
       showPrompt(rl);
       return;
     }

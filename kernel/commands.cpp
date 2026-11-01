@@ -2,6 +2,8 @@
 
 #include "uart.h"
 #include "fb.h"
+#include "ui.h"
+#include "console.h"
 #include "memory.h"
 #include "string.h"
 
@@ -29,7 +31,6 @@
 #include "rtc.h"
 #include "fd.h"
 #include "smp.h"
-#include "ui.h"
 
 static void print_u64(
     uint64_t value
@@ -94,6 +95,16 @@ static void irq_quiesce()
     timer_set_sched_tick(1);
 }
 
+/* Back to the normal running state: 100 Hz system tick, scheduler tick on,
+   GIC line unmasked, CPU IRQ unmasked. */
+static void irq_resume_system_tick()
+{
+    timer_set_sched_tick(1);
+    interrupt_timer_line_enable();
+    timer_start_periodic(100U);
+    interrupt_enable();
+}
+
 static void irq_print_status()
 {
     InterruptStats st;
@@ -142,6 +153,7 @@ static int irq_stage_oneshot()
              timer_mode() == TIMER_MODE_OFF;
 
     irq_quiesce();
+    irq_resume_system_tick();
     return ok;
 }
 
@@ -177,7 +189,10 @@ static int irq_stage_periodic(int hz, int with_sched_tick, int keep_running)
         ok = ok && ticks == 0ULL;
 
     if (!keep_running)
+    {
         irq_quiesce();
+        irq_resume_system_tick();
+    }
 
     return ok;
 }
@@ -186,10 +201,11 @@ static void command_irq(const char* argument)
 {
 #if defined(__wasm32__)
     (void)argument;
-    uart_puts("irq: hardware IRQ/GIC/Generic Timer controls are not exposed in browser WASM32.\r\n");
-    uart_puts("The browser event loop handles UI input and periodic redraws instead.\r\n");
+    uart_puts("Hardware IRQ: unavailable in browser WASM32.\r\n");
+    uart_puts("Clock source : host monotonic timer / browser event loop.\r\n");
+    uart_puts("No GIC, CPU IRQ mask, or hardware timer interrupt is exposed.\r\n");
     return;
-#else
+#endif
     if (argument == 0 || argument[0] == 0 || str_equal(argument, "status"))
     {
         irq_print_status();
@@ -199,7 +215,15 @@ static void command_irq(const char* argument)
     if (str_equal(argument, "off"))
     {
         irq_quiesce();
-        uart_puts("Timer IRQ disabled; CPU IRQ masked.\r\n");
+        uart_puts("Timer IRQ disabled; CPU IRQ masked. Use 'irq on' to restart the 100 Hz system tick.\r\n");
+        return;
+    }
+
+    if (str_equal(argument, "on"))
+    {
+        irq_quiesce();
+        irq_resume_system_tick();
+        uart_puts("Timer IRQ enabled: 100 Hz system tick, CPU IRQ unmasked.\r\n");
         return;
     }
 
@@ -263,8 +287,7 @@ static void command_irq(const char* argument)
         return;
     }
 
-    uart_puts("Usage: irq [status|off|oneshot|stagec [hz]|staged [hz]|selftest]\r\n");
-#endif
+    uart_puts("Usage: irq [status|on|off|oneshot|stagec [hz]|staged [hz]|selftest]\r\n");
 }
 
 /* Allocate, verify zeroing, free, then check double-free is rejected. */
@@ -307,7 +330,11 @@ static void command_pages()
     PageStats st;
     page_alloc_get_stats(&st);
 
+#if defined(__wasm32__)
+    uart_puts("WASM linear-memory pages (4 KiB)\r\n---------------------------------\r\n");
+#else
     uart_puts("Physical pages\r\n--------------\r\n");
+#endif
     uart_puts("Ready          : "); uart_puts(page_alloc_ready() ? "yes" : "no");
     uart_puts("\r\nTotal pages    : "); print_u64(st.total_pages);
     uart_puts("\r\nFree pages     : "); print_u64(st.free_pages);
@@ -339,14 +366,13 @@ static void command_tasks()
 static void command_mount()
 {
     uart_puts("Mounts\r\n------\r\n");
-    uart_puts("block device   : ");
 #if defined(__wasm32__)
-    uart_puts(storage_ready() ? "browser localStorage sector bridge (ready)" : "none");
+    uart_puts("storage backend: browser/host sector bridge (ready)");
 #else
-    uart_puts(storage_ready() ? "virtio-blk (ready)" : "none");
+    uart_puts("block device   : "); uart_puts(storage_ready() ? "virtio-blk (ready)" : "none");
 #endif
     uart_puts("\r\nroot (/)       : myfs, ");
-    uart_puts(fs_persistent() ? "persistent (backed by platform storage)" : "RAM only (not persistent)");
+    uart_puts(fs_persistent() ? "persistent (sector-backed)" : "RAM only (not persistent)");
     uart_puts("\r\n");
 }
 
@@ -359,8 +385,12 @@ static void command_stats()
 
     uart_puts("System statistics\r\n-----------------\r\n");
     uart_puts("Uptime (s)     : "); print_u64(timer_seconds());
+#if defined(__wasm32__)
+    uart_puts("\r\nHardware IRQ  : unavailable (browser event loop)");
+#else
     uart_puts("\r\nIRQ total/timer: "); print_u64(irq.total); uart_puts(" / "); print_u64(irq.timer);
     uart_puts("\r\nIRQ spurious   : "); print_u64(irq.spurious);
+#endif
     uart_puts("\r\nSched ticks    : "); print_u64(scheduler_ticks());
     uart_puts("\r\nProcesses      : "); print_u64((uint64_t)process_count());
     uart_puts("\r\nHeap used/free : "); print_u64(heap_used()); uart_puts(" / "); print_u64(heap_free());
@@ -432,12 +462,13 @@ static const ManualEntry manual_entries[] =
     {"history", "show command history", "history [10|-c]", "-c clear history; N show last N entries; Arrow Up/Down recall"},
     {"threads", "list cooperative kernel threads", "threads", "Shows state, priority, run counts, and context switches"},
     {"smp", "show CPU/SMP bring-up readiness", "smp", "Reports current MPIDR Aff0, online CPU count, and whether SMP is enabled; secondary startup is disabled"},
-    {"fbinfo", "show framebuffer backend status", "fbinfo", "Reports software RAM-surface state; the default QEMU runner remains serial-only"},
-    {"thread-demo", "exercise voluntary context switching", "thread-demo", "Uses yield only; timer IRQ/preemption stays disabled"},
+    {"fbinfo", "show framebuffer backend status", "fbinfo", "Reports the framebuffer terminal state (QEMU window runner)"},
+    {"thread-demo", "exercise voluntary context switching", "thread-demo", "Uses yield only; no preemption (tick keeps running)"},
     {"unset", "remove an environment variable", "unset NAME", "NAME must follow shell identifier rules"},
     {"fds", "list open file descriptors", "fds", "Shows standard streams and currently open descriptors"},
     {"ifconfig", "show the configured network interface", "ifconfig", "Displays static IPv4, gateway, DNS and VirtIO-Net MAC"},
     {"nslookup", "resolve a DNS A record", "nslookup <hostname>", "Uses the configured DNS server; requires working UDP and ARP"},
+    {"httpget", "fetch a plain-HTTP URL over TCP", "httpget <hostname> [path]", "Outbound IPv4 TCP + HTTP/1.0; HTTPS/TLS is not implemented"},
     {"dnsserver", "set the DNS server address", "dnsserver <ipv4>", "Root only; default for QEMU user networking is 10.0.2.3"}
 };
 
@@ -1241,6 +1272,12 @@ static void command_threads()
 
 static void command_smp_status()
 {
+#if defined(__wasm32__)
+    uart_puts("SMP / CPU topology\r\n------------------\r\n");
+    uart_puts("Guest CPUs       : not exposed by browser WASM\r\n");
+    uart_puts("SMP scheduling   : unavailable\r\n");
+    return;
+#endif
     uart_puts("SMP / CPU topology\r\n------------------\r\nCPU Affinity-0 ID : ");
     print_u64((uint64_t)smp_cpu_id());
     uart_puts("\r\nOnline CPUs       : ");
@@ -1253,34 +1290,40 @@ static void command_smp_status()
 
 static void command_fbinfo()
 {
+    uart_puts("Framebuffer diagnostics\r\n------------------------\r\nBackend : ");
 #if defined(__wasm32__)
-    uart_puts("Framebuffer diagnostics\r\n------------------------\r\nBackend : WebAssembly linear-memory framebuffer\r\nStatus  : ");
-    uart_puts(fb_is_ready() ? "initialized\r\n" : "not initialized\r\n");
-    uart_puts("Geometry: "); print_u64((uint64_t)fb_get_width());
-    uart_putc('x'); print_u64((uint64_t)fb_get_height());
-    uart_puts(" pixels, 32 bpp\r\nDisplay : browser Canvas host bridge\r\n");
+    uart_puts("browser Canvas bridge\r\n");
 #else
-    uart_puts("Framebuffer diagnostics\r\n------------------------\r\nBackend : reserved RAM surface\r\nStatus  : ");
+    uart_puts(fb_has_display() ? "display attached (QEMU window)\r\n" : "none (serial console only)\r\n");
+#endif
+    uart_puts("Surface : ");
     uart_puts(fb_is_ready() ? "initialized\r\n" : "not initialized\r\n");
     uart_puts("Geometry: "); print_u64((uint64_t)fb_get_width());
     uart_putc('x'); print_u64((uint64_t)fb_get_height());
-    uart_puts(" pixels, 32 bpp\r\nDisplay : no QEMU video device is wired to this surface; UART remains the console\r\n");
-#endif
+    uart_puts(" pixels, 32 bpp\r\nTerminal: ");
+    if (console_active())
+    {
+        print_u64((uint64_t)console_columns()); uart_putc('x'); print_u64((uint64_t)console_rows());
+        uart_puts(" cells, scrollback ");
+        print_u64((uint64_t)console_scrollback_lines());
+        uart_puts(" lines (mouse wheel / Shift+PageUp / Shift+PageDown scroll)\r\n");
+    }
+    else uart_puts("inactive; UART is the only console\r\n");
 }
 
 static void command_thread_demo()
 {
 #if defined(__wasm32__)
-    uart_puts("thread-demo: native kernel context switching requires the AArch64/QEMU target; unavailable in browser WASM32.\r\n");
+    uart_puts("thread-demo: native kernel-thread context switching is unavailable in browser WASM32.\r\n");
     return;
-#else
+#endif
     if (thread_active_count() != 1)
     {
         uart_puts("thread-demo: finish/avoid other threads first\r\n");
         return;
     }
 
-    uart_puts("Running cooperative context-switch demo; timer IRQ remains off.\r\n");
+    uart_puts("Running cooperative context-switch demo (timer tick keeps running; no preemption).\r\n");
     int a = thread_create("demo-A", thread_demo_worker, (void*)1ULL, 1);
     int b = thread_create("demo-B", thread_demo_worker, (void*)2ULL, 1);
     if (a < 0 || b < 0)
@@ -1294,7 +1337,6 @@ static void command_thread_demo()
         thread_yield();
 
     uart_puts("thread-demo: PASS (cooperative switches completed)\r\n");
-#endif
 }
 
 static void command_unset(const char* argument)
@@ -1366,7 +1408,7 @@ static void command_help()
         "  userdemo             Run preserved EL0 userspace demo\r\n"
         "  su [root|user]       Switch user; root asks for password\r\n"
         "  logout               Return from root to user\r\n"
-        "  level                Show current exception level\r\n"
+        "  level                Show current CPU privilege level\r\n"
         "  mmu                  Show MMU status\r\n"
         "  disk                 Show VirtIO disk status\r\n"
         "  diskread <sector>    Read and inspect a 512-byte sector\r\n"
@@ -1379,29 +1421,34 @@ static void command_help()
         "  ifconfig             Show IPv4/MAC/gateway/DNS settings\r\n"
         "  ping <ip>            Send ICMP echo request\r\n"
         "  nslookup <hostname>  Resolve a DNS A record over UDP\r\n"
+        "  httpget <host> [path] Fetch a plain HTTP page over TCP\r\n"
         "  dnsserver <ipv4>     Set DNS server (root only)\r\n"
         "  selftest             Run kernel integration checks\r\n"
         "  pages                Show physical page allocator\r\n"
         "  tasks                Show scheduler and processes\r\n"
         "  threads              Show cooperative kernel threads\r\n"
         "  smp                  Show CPU topology; SMP remains disabled by default\r\n"
-        "  fbinfo               Show framebuffer RAM-surface status (serial console remains default)\r\n"
+        "  fbinfo               Show framebuffer terminal status\r\n"
         "  fds                  List open file descriptors\r\n"
-        "  thread-demo          Test context switching without timer IRQ\r\n"
+        "  thread-demo          Test cooperative context switching\r\n"
         "  mount                Show storage and filesystem mount\r\n"
         "  stats                Show system statistics\r\n"
         "  log [0-3]            Show/set log level\r\n"
-        "  irq [status|off|oneshot|stagec|staged|selftest] [hz]  Timer IRQ bring-up\r\n"
+        "  irq [status|on|off|oneshot|stagec|staged|selftest] [hz]  Timer IRQ control/tests\r\n"
     );
+#if defined(__wasm32__)
+    uart_puts("WASM32 note: `exec`, `nano`, `calc`, `userdemo` and native ELF commands require AArch64 execution, which the browser sandbox does not provide. Use the seven built-in RPK apps from the framebuffer UI.\r\n");
+    uart_puts("WASM32 note: `mmu`, `level`, `irq`, `smp` and `thread-demo` report unavailable native hardware/runtime facilities; `pages` reports the WASM linear-memory page pool.\r\n");
+#endif
 }
 
 static void command_mem()
 {
-    uart_puts(
-        "Memory information\r\n"
-        "------------------\r\n"
-        "RAM : "
-    );
+#if defined(__wasm32__)
+    uart_puts("Memory information (WASM linear memory)\r\n----------------------------------------\r\nLinear memory : ");
+#else
+    uart_puts("Memory information\r\n------------------\r\nRAM : ");
+#endif
 
     print_u64(
         memory_total() /
@@ -2112,15 +2159,30 @@ static void command_diskflush()
 
 static void command_apps()
 {
+#if defined(__wasm32__)
+    uart_puts("Built-in RioOS applications\r\n----------------------------\r\n");
+    uart_puts("calculator.rpk  - Calculator\r\n");
+    uart_puts("clock.rpk       - Clock\r\n");
+    uart_puts("files.rpk       - File Manager\r\n");
+    uart_puts("launcher.rpk    - App Launcher\r\n");
+    uart_puts("pengaturan.rpk  - Settings\r\n");
+    uart_puts("terminal.rpk    - Terminal\r\n");
+    uart_puts("wallpaper.rpk   - Wallpaper\r\n");
+#else
     uart_puts("Bundled user programs\r\n----------------------\r\n");
     uart_puts("/bin/init.elf    - userspace self-test/demo\r\n");
     uart_puts("/bin/nano.elf    - text editor (command: nano)\r\n");
     uart_puts("/bin/calc.elf    - full terminal calculator (command: calc)\r\n");
+#endif
 }
 
 static void command_uname()
 {
+#if defined(__wasm32__)
+    uart_puts("MyKernel "); uart_puts(MYKERNEL_VERSION_STRING); uart_puts(" wasm32 WebAssembly\r\n");
+#else
     uart_puts("MyKernel "); uart_puts(MYKERNEL_VERSION_STRING); uart_puts(" ARM64 bare-metal\r\n");
+#endif
 }
 
 static void command_user_login(const char* argument)
@@ -2144,7 +2206,6 @@ static void command_user_login(const char* argument)
     char password[32];
     uart_puts("user login\r\n");
     uart_puts("Password: ");
-    if (!uart_output_hook_active()) fb_print("Password: ", 0xFFFFFF);
 
     if (security_read_password(password, sizeof(password)) < 0)
     {
@@ -2164,7 +2225,6 @@ static void command_su(const char* argument)
     {
         char password[48];
         uart_puts("root password: ");
-        if (!uart_output_hook_active()) fb_print("root password: ", 0xFFFFFF);
         if (security_read_password(password, sizeof(password)) < 0 ||
             security_login_root(password) != 0)
         {
@@ -2204,9 +2264,13 @@ static void command_whoami()
     uart_puts("\r\nUID      : ");
     print_u64(security_is_root() ? 0ULL : 1000ULL);
     uart_puts("\r\nDomain   : kernel shell\r\n");
+#if defined(__wasm32__)
+    uart_puts("Runtime  : WebAssembly sandbox\r\n");
+#else
     int pid = user_current_pid();
     uart_puts("EL0 app  : ");
     uart_puts(pid >= 0 ? "running\r\n" : "none\r\n");
+#endif
 }
 
 static void command_net()
@@ -2255,6 +2319,141 @@ static void command_nslookup(const char* argument)
     if (rc == 0) { uart_puts("Query time: "); print_u64(timer_millis() - start); uart_puts(" ms\r\n"); }
 }
 
+static int http_append(char* output, uint32_t capacity, uint32_t* used, const char* value)
+{
+    if (!output || !used || !value) return 0;
+    for (uint32_t i = 0; value[i]; ++i)
+    {
+        if (*used + 1U >= capacity) return 0;
+        output[(*used)++] = value[i];
+    }
+    output[*used] = '\0';
+    return 1;
+}
+
+static void command_httpget(const char* argument)
+{
+    if (!net_ready())
+    {
+        uart_puts("httpget: network not ready\r\n");
+        return;
+    }
+    if (!argument || !argument[0])
+    {
+        uart_puts("httpget: usage: httpget <hostname> [path]\r\n");
+        return;
+    }
+
+    while (*argument == ' ' || *argument == '\t') ++argument;
+    char hostname[254];
+    char path_input[256];
+    uint32_t host_len = 0;
+    while (argument[host_len] && argument[host_len] != ' ' && argument[host_len] != '\t')
+    {
+        if (host_len + 1U >= sizeof(hostname))
+        {
+            uart_puts("httpget: hostname too long\r\n");
+            return;
+        }
+        hostname[host_len] = argument[host_len];
+        ++host_len;
+    }
+    if (host_len == 0) { uart_puts("httpget: missing hostname\r\n"); return; }
+    hostname[host_len] = '\0';
+
+    const char* path_arg = argument + host_len;
+    while (*path_arg == ' ' || *path_arg == '\t') ++path_arg;
+    uint32_t path_len = 0;
+    if (!*path_arg) path_input[path_len++] = '/';
+    else
+    {
+        if (*path_arg != '/') path_input[path_len++] = '/';
+        while (*path_arg && path_len + 1U < sizeof(path_input))
+            path_input[path_len++] = *path_arg++;
+        if (*path_arg)
+        {
+            uart_puts("httpget: path too long\r\n");
+            return;
+        }
+    }
+    path_input[path_len] = '\0';
+
+    uint32_t target_ip = 0;
+    if (!net_parse_ipv4(hostname, &target_ip))
+    {
+        uart_puts("Resolving "); uart_puts(hostname); uart_puts(" ...\r\n");
+        int dns_rc = net_dns_resolve(hostname, &target_ip, 3000U);
+        if (dns_rc != 0)
+        {
+            uart_puts("httpget: DNS lookup failed (try nslookup ");
+            uart_puts(hostname); uart_puts(")\r\n");
+            return;
+        }
+    }
+
+    int socket = net_tcp_socket(0);
+    if (socket < 0)
+    {
+        uart_puts("httpget: could not allocate TCP socket\r\n");
+        return;
+    }
+    uart_puts("Connecting to "); uart_puts(hostname); uart_puts(" (");
+    net_print_ipv4(target_ip); uart_puts(") port 80 ...\r\n");
+    int rc = net_tcp_connect(0, socket, target_ip, 80U, 5000U);
+    if (rc != 0)
+    {
+        uart_puts("httpget: TCP connection failed/timeout\r\n");
+        (void)net_tcp_close(0, socket);
+        return;
+    }
+
+    char request[768];
+    uint32_t request_len = 0;
+    request[0] = '\0';
+    int built = http_append(request, sizeof(request), &request_len, "GET ") &&
+        http_append(request, sizeof(request), &request_len, path_input) &&
+        http_append(request, sizeof(request), &request_len, " HTTP/1.0\r\nHost: ") &&
+        http_append(request, sizeof(request), &request_len, hostname) &&
+        http_append(request, sizeof(request), &request_len,
+                    "\r\nUser-Agent: MyKernel/1.0\r\nConnection: close\r\n\r\n");
+    if (!built)
+    {
+        uart_puts("httpget: request too large\r\n");
+        (void)net_tcp_close(0, socket);
+        return;
+    }
+
+    rc = net_tcp_send(0, socket, request, request_len, 5000U);
+    if (rc < 0 || (uint32_t)rc != request_len)
+    {
+        uart_puts("httpget: request send failed\r\n");
+        (void)net_tcp_close(0, socket);
+        return;
+    }
+
+    uart_puts("--- HTTP response (maximum 4096 bytes) ---\r\n");
+    char response[600];
+    uint32_t total = 0;
+    while (total < 4096U)
+    {
+        uint32_t cap = sizeof(response);
+        if (cap > 4096U - total) cap = 4096U - total;
+        int got = net_tcp_recv(0, socket, response, cap, 2500U);
+        if (got == 0) break;
+        if (got < 0)
+        {
+            if (got == -110 && total != 0) break;
+            uart_puts("\r\nhttpget: receive timeout/network error\r\n");
+            break;
+        }
+        for (int i = 0; i < got; ++i) uart_putc(response[i]);
+        total += (uint32_t)got;
+    }
+    if (total >= 4096U) uart_puts("\r\n[response truncated at 4096 bytes]\r\n");
+    uart_puts("\r\n--- end response ---\r\n");
+    (void)net_tcp_close(0, socket);
+}
+
 static void command_dnsserver(const char* argument)
 {
     if (!security_is_root())
@@ -2279,30 +2478,69 @@ static void command_dnsserver(const char* argument)
 static void command_selftest()
 {
 #if defined(__wasm32__)
-    int pass=0,total=0;
+    int pass = 0, total = 0;
     uart_puts("RioOS WASM32 self-test\r\n=======================\r\n");
-    ++total; if (storage_ready()) { uart_puts("[PASS] browser sector storage bridge\r\n"); ++pass; } else uart_puts("[FAIL] browser sector storage bridge\r\n");
-    ++total; if (fs_persistent()) { uart_puts("[PASS] MyFS mounted\r\n"); ++pass; } else uart_puts("[FAIL] MyFS mounted\r\n");
-    ++total; {
-        const char* test_path="/storage/home/.wasm-selftest";
-        uint8_t out[16]; uint64_t got=0; const char* marker="wasm-persist-ok";
-        int old=fs_resolve(test_path,fs_get_root()); if (old>=0) (void)fs_rm(test_path,fs_get_root());
-        int ok=fs_touch(test_path,fs_get_root())>=0 &&
-            fs_write_data(test_path,fs_get_root(),(const uint8_t*)marker,15)==0 &&
-            fs_read_file(test_path,fs_get_root(),out,sizeof(out),&got)==0 && got==15;
-        if (ok) for (int i=0;i<15;i++) if (out[i]!=(uint8_t)marker[i]) ok=0;
-        if (fs_rm(test_path,fs_get_root())!=0) ok=0;
-        if (ok) { uart_puts("[PASS] persistent file read/write/delete\r\n"); ++pass; } else uart_puts("[FAIL] persistent file read/write/delete\r\n");
+
+    ++total;
+    if (storage_ready()) { uart_puts("[PASS] browser sector storage bridge\r\n"); ++pass; }
+    else uart_puts("[FAIL] browser sector storage bridge\r\n");
+
+    ++total;
+    if (fs_persistent()) { uart_puts("[PASS] MyFS mounted\r\n"); ++pass; }
+    else uart_puts("[FAIL] MyFS mounted\r\n");
+
+    ++total;
+    {
+        const char* path = "/storage/home/.wasm-selftest";
+        uint8_t output[24];
+        uint64_t got = 0;
+        const char* marker = "wasm-persist-ok";
+        int old = fs_resolve(path, fs_get_root());
+        if (old >= 0) (void)fs_rm(path, fs_get_root());
+        int ok = fs_touch(path, fs_get_root()) >= 0 &&
+                 fs_write_data(path, fs_get_root(), (const uint8_t*)marker, 15) == 0 &&
+                 fs_read_file(path, fs_get_root(), output, sizeof(output), &got) == 0 &&
+                 got == 15;
+        if (ok)
+            for (int i = 0; i < 15; ++i)
+                if (output[i] != (uint8_t)marker[i]) ok = 0;
+        if (fs_rm(path, fs_get_root()) != 0) ok = 0;
+        if (ok) { uart_puts("[PASS] persistent file read/write/delete\r\n"); ++pass; }
+        else uart_puts("[FAIL] persistent file read/write/delete\r\n");
     }
-    ++total; if (syscall_invoke(SYS_PING)==0x4D594B56ULL) { uart_puts("[PASS] syscall compatibility shim\r\n"); ++pass; } else uart_puts("[FAIL] syscall compatibility shim\r\n");
-    ++total; if (fb_is_ready() && fb_get_width()>0 && fb_get_height()>0) { uart_puts("[PASS] browser framebuffer\r\n"); ++pass; } else uart_puts("[FAIL] browser framebuffer\r\n");
-    ++total; {
-        int ok=1;
-        for (int app=0;app<UI_APP_COUNT;app++) if (!ui_app_package_valid(app)) ok=0;
-        if (ok) { uart_puts("[PASS] all 7 built-in app manifests\r\n"); ++pass; } else uart_puts("[FAIL] built-in app manifests\r\n");
+
+    ++total;
+    if (syscall_invoke(SYS_PING) == 0x4D594B56ULL)
+    { uart_puts("[PASS] syscall compatibility bridge\r\n"); ++pass; }
+    else uart_puts("[FAIL] syscall compatibility bridge\r\n");
+
+    ++total;
+    {
+        int ok = pages_selftest();
+        int pid = ok ? process_create("wasm-selftest") : -1;
+        if (pid >= 0)
+        {
+            ok = process_set_state(pid, PROCESS_READY) == 0 &&
+                 scheduler_add(pid) == 0 && scheduler_remove(pid) == 0 &&
+                 process_destroy(pid) == 0;
+        }
+        else ok = 0;
+        if (ok) { uart_puts("[PASS] page allocator and process lifecycle\r\n"); ++pass; }
+        else uart_puts("[FAIL] page allocator and process lifecycle\r\n");
     }
-    uart_puts("[SKIP] MMU, page allocator, GIC/IRQ, native thread switching, AArch64 ELF and VirtIO require the native hardware target.\r\n");
-    uart_puts("Summary: "); print_u64((uint64_t)pass); uart_putc('/'); print_u64((uint64_t)total); uart_puts(" WASM checks passed.\r\n");
+
+    ++total;
+    {
+        int ok = fb_is_ready() && fb_get_width() > 0 && fb_get_height() > 0;
+        for (int app = 0; app < UI_APP_COUNT; ++app)
+            if (!ui_app_package_valid(app)) ok = 0;
+        if (ok) { uart_puts("[PASS] framebuffer and all 7 built-in apps\r\n"); ++pass; }
+        else uart_puts("[FAIL] framebuffer and built-in apps\r\n");
+    }
+
+    uart_puts("[SKIP] GIC interrupts, hardware MMU, native CPU context switching, AArch64 ELF execution and VirtIO devices are unavailable in browser WASM32.\r\n");
+    uart_puts("Summary: "); print_u64((uint64_t)pass); uart_putc('/');
+    print_u64((uint64_t)total); uart_puts(" WASM checks passed.\r\n");
 #else
     int pass=0,total=0;
     uart_puts("MyKernel self-test\r\n==================\r\n");
@@ -2354,7 +2592,7 @@ static void command_man(const char* argument)
     if (!query[0])
     {
         uart_puts("man: usage: man <command>\r\n");
-        uart_puts("Available manuals: ls cat grep find chmod cp mv rm mkdir echo wc du df nano tree mount ps history threads thread-demo unset fds ifconfig nslookup dnsserver\r\n");
+        uart_puts("Available manuals: ls cat grep find chmod cp mv rm mkdir echo wc du df nano tree mount ps history threads thread-demo unset fds ifconfig nslookup httpget dnsserver\r\n");
         return;
     }
 
@@ -2624,6 +2862,7 @@ void execute_command(
     if (str_equal(command, "ifconfig")) { command_net(); return; }
     if (str_equal(command, "ping")) { command_ping(argument); return; }
     if (str_equal(command, "nslookup")) { command_nslookup(argument); return; }
+    if (str_equal(command, "httpget")) { command_httpget(argument); return; }
     if (str_equal(command, "dnsserver")) { command_dnsserver(argument); return; }
     if (str_equal(command, "selftest")) { command_selftest(); return; }
     if (str_equal(command, "pages")) { command_pages(); return; }
@@ -2640,17 +2879,18 @@ void execute_command(
 
     if (str_equal(command, "level"))
     {
+#if defined(__wasm32__)
+        uart_puts("Execution level: not applicable (WebAssembly sandbox)\r\n");
+#else
         uint64_t current_el = 0;
 #if defined(__aarch64__)
         asm volatile("mrs %0, CurrentEL" : "=r"(current_el));
         current_el = (current_el >> 2) & 3ULL;
-#else
-        uart_puts("Current EL: not applicable (browser WASM32 has no ARM Exception Levels)\r\n");
-        return;
 #endif
         uart_puts("Current EL: ");
         print_u64(current_el);
         uart_puts("\r\n");
+#endif
         return;
     }
 

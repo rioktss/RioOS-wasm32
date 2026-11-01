@@ -67,7 +67,7 @@ void ui_wallpaper_render(uint64_t epoch)
     if (count == 0)
     {
         fb_draw_ui_text("No wallpapers installed", 72, 190, 0xFFFFFFU, 2);
-        fb_draw_ui_text("Place a BMP file in assets/wallpapers/ and rebuild.",
+        fb_draw_ui_text("Place a BMP file in userspace/assets/wallpapers/ and rebuild.",
                      72, 232, 0xBCD0E8U, 1);
         fb_draw_ui_text("Supported: uncompressed 24-bit or 32-bit BMP, up to 1 MiB.",
                      72, 260, 0xBCD0E8U, 1);

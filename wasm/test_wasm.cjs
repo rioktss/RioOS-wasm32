@@ -77,6 +77,19 @@ async function main() {
   const homeHash = framebufferHash(e);
   assert.notEqual(homeHash, lockHash, 'home screen should render differently from lock screen');
 
+  // Exercise browser pointer/touch navigation, including the Control Centre swipe.
+  e.rio_pointer(188, 368, 1);
+  e.rio_pointer(188, 368, 0);
+  assert.equal(e.rio_get_ui_state(), 2, 'pointer tap should open the first Home app');
+  assert.equal(e.rio_get_active_app(), 0, 'pointer tap should open Terminal');
+  e.rio_key(27);
+  assert.equal(e.rio_get_ui_state(), 1, 'Escape should return from pointer-opened app');
+  e.rio_pointer(500, 24, 1);
+  e.rio_pointer(500, 120, 0);
+  assert.equal(e.rio_get_ui_state(), 3, 'down swipe from top should open Control Centre');
+  e.rio_key(27);
+  assert.equal(e.rio_get_ui_state(), 1, 'Escape should close Control Centre');
+
   // Exercise all seven installed built-in apps and their back navigation.
   const appHashes = new Set();
   for (let app = 1; app <= 7; app++) {
@@ -113,6 +126,14 @@ async function main() {
     return lastConsole;
   }
   assert.match(runCli('pwd'), /\/home\/user/, 'standalone CLI reports the VFS current directory');
+  assert.match(runCli('uname'), /wasm32 WebAssembly/, 'uname identifies the actual WASM32 target');
+  assert.match(runCli('version'), /MyKernel v1\.13\.0/, 'version reports the synchronized kernel baseline');
+  assert.match(runCli('pages'), /WASM linear-memory pages/, 'page diagnostics identify the WASM page pool');
+  assert.match(runCli('mount'), /browser\/host sector bridge/, 'mount reports the browser/host storage backend');
+  assert.match(runCli('irq status'), /Hardware IRQ: unavailable/, 'IRQ command does not claim browser hardware interrupts');
+  assert.match(runCli('smp'), /Guest CPUs.*not exposed/, 'SMP command reports the browser limitation');
+  assert.match(runCli('thread-demo'), /native kernel-thread context switching is unavailable/, 'thread demo reports its unsupported native operation');
+  assert.match(runCli('apps'), /wallpaper\.rpk/, 'apps lists the seven built-in RPK packages');
   assert.match(runCli('echo RIOOS_CLI_TEST_OK'), /RIOOS_CLI_TEST_OK/, 'standalone CLI writes actual dispatcher output');
   runCli('echo RIOOS_PERSISTENCE_OK > /home/user/wasm-cli-test.txt');
   assert.match(runCli('cat /home/user/wasm-cli-test.txt'), /RIOOS_PERSISTENCE_OK/, 'standalone CLI file redirection and cat work');
@@ -141,9 +162,9 @@ async function main() {
 
   console.log('PASS: WASM imports/exports and module validation');
   console.log('PASS: boot, lock screen, Home, framebuffer rendering');
-  console.log('PASS: all 7 built-in apps and Escape navigation');
+  console.log('PASS: all 7 built-in apps, pointer/touch navigation and Escape navigation');
   console.log('PASS: Terminal command dispatcher runs `selftest` with no failed WASM checks');
-  console.log('PASS: host terminal API (pwd, echo, redirect, cat, cd) uses the real command dispatcher');
+  console.log('PASS: host terminal API and WASM-aware command diagnostics use the real command dispatcher');
   console.log(`PASS: persistence reload (${savedSectorCount} non-zero sectors; all 7 apps reopen)`);
   console.log(`PASS: runtime smoke checks (${Date.now() - startedAt} ms); host output bytes=${lastConsole.length}`);
 }

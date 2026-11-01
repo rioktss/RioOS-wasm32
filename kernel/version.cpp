@@ -49,18 +49,14 @@ static void print_u64_both(uint64_t value)
         putc_both(buffer[--pos]);
 }
 
+#if defined(__aarch64__)
 static uint64_t current_el()
 {
     uint64_t value = 0;
-
-#if defined(__aarch64__)
     asm volatile("mrs %0, CurrentEL" : "=r"(value));
     return (value >> 2) & 3ULL;
-#else
-    /* WebAssembly has no ARM exception-level register. */
-    return 0;
-#endif
 }
+#endif
 
 static const char MYKERNEL_LOGO[] =
     "                               __\r\n"
@@ -113,7 +109,11 @@ static void print_info()
     puts_both("Machine       : QEMU virt\r\n");
     puts_both("CPU           : Cortex-A72\r\n");
 #endif
+#if defined(__wasm32__)
+    puts_both("Linear memory : ");
+#else
     puts_both("RAM           : ");
+#endif
     print_u64_both(memory_total() / (1024ULL * 1024ULL));
     puts_both(" MiB\r\n");
     puts_both("Heap          : ");
@@ -122,7 +122,7 @@ static void print_info()
     print_u64_both(heap_total() / 1024ULL);
     puts_both(" KiB total\r\n");
     puts_both("Storage       : ");
-    puts_both(storage_ready() ? "VirtIO Block (ready)" : "VirtIO Block (offline)");
+    puts_both(storage_ready() ? "Browser localStorage bridge (ready)" : "Browser storage (offline)");
     puts_both("\r\n");
     puts_both("Filesystem    : MyFS (");
     puts_both(fs_persistent() ? "persistent" : "RAM only");

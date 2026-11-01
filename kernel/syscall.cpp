@@ -109,9 +109,9 @@ void syscall_dispatch(ExceptionFrame* frame, int from_user)
         return;
     }
 
-    uint32_t saved_fs_uid = fs_current_uid();
-    uint32_t saved_fs_gid = fs_current_gid();
-    if (from_user) fs_set_credentials(1000U, 1000U);
+    /* EL0 programs (nano, calc, ...) act with the credentials of the shell
+       that launched them: UID 1000 after 'user', UID 0 after 'su root'.
+       Forcing UID 1000 here made root's nano fail with "permission denied". */
 
     uint64_t number = frame->x[8];
     uint64_t result = (uint64_t)-38;
@@ -190,11 +190,7 @@ void syscall_dispatch(ExceptionFrame* frame, int from_user)
 
         case SYS_UNAME:
         {
-#if defined(__wasm32__)
-            const char* out = "MyKernel " MYKERNEL_VERSION_STRING " wasm32";
-#else
             const char* out = "MyKernel " MYKERNEL_VERSION_STRING " ARM64";
-#endif
             char* dst = (char*)frame->x[0];
             if (dst == 0 || (from_user && !syscall_user_pointer_ok_write(dst, 32)))
             {
@@ -230,6 +226,9 @@ void syscall_dispatch(ExceptionFrame* frame, int from_user)
             }
             for (uint64_t i = 0; i < len; ++i)
                 uart_putc(buf[i]);
+#ifndef HOST_TEST
+            uart_flush_output(); /* show the program's output right away */
+#endif
             result = len;
             break;
         }
@@ -648,6 +647,73 @@ void syscall_dispatch(ExceptionFrame* frame, int from_user)
             break;
         }
 
+        case SYS_NET_TCP_SOCKET:
+        {
+            int owner_pid = from_user ? user_current_pid() : scheduler_current_pid();
+            if (owner_pid < 0) owner_pid = 0;
+            result = (uint64_t)(int64_t)net_tcp_socket(owner_pid);
+            break;
+        }
+
+        case SYS_NET_TCP_CONNECT:
+        {
+            int owner_pid = from_user ? user_current_pid() : scheduler_current_pid();
+            if (owner_pid < 0) owner_pid = 0;
+            if (frame->x[0] > 0x7FFFFFFFULL || frame->x[1] > 0xFFFFFFFFULL ||
+                frame->x[2] > 65535ULL || frame->x[3] == 0 ||
+                frame->x[3] > NET_TCP_MAX_TIMEOUT_MS)
+                result = (uint64_t)-22;
+            else
+                result = (uint64_t)(int64_t)net_tcp_connect(owner_pid, (int)frame->x[0],
+                    (uint32_t)frame->x[1], (uint16_t)frame->x[2], (uint32_t)frame->x[3]);
+            break;
+        }
+
+        case SYS_NET_TCP_SEND:
+        {
+            int owner_pid = from_user ? user_current_pid() : scheduler_current_pid();
+            if (owner_pid < 0) owner_pid = 0;
+            const void* buffer = (const void*)frame->x[1];
+            uint64_t length = frame->x[2];
+            uint64_t timeout_ms = frame->x[3];
+            if (frame->x[0] > 0x7FFFFFFFULL || length > NET_TCP_MAX_IO ||
+                timeout_ms == 0 || timeout_ms > NET_TCP_MAX_TIMEOUT_MS)
+                result = (uint64_t)-22;
+            else if (length && (!buffer || (from_user && !syscall_user_pointer_ok(buffer, length))))
+                result = (uint64_t)-14;
+            else
+                result = (uint64_t)(int64_t)net_tcp_send(owner_pid, (int)frame->x[0],
+                    buffer, (uint32_t)length, (uint32_t)timeout_ms);
+            break;
+        }
+
+        case SYS_NET_TCP_RECV:
+        {
+            int owner_pid = from_user ? user_current_pid() : scheduler_current_pid();
+            if (owner_pid < 0) owner_pid = 0;
+            void* buffer = (void*)frame->x[1];
+            uint64_t capacity = frame->x[2];
+            uint64_t timeout_ms = frame->x[3];
+            if (frame->x[0] > 0x7FFFFFFFULL || capacity == 0 ||
+                capacity > NET_TCP_MAX_IO || timeout_ms > NET_TCP_MAX_TIMEOUT_MS)
+                result = (uint64_t)-22;
+            else if (!buffer || (from_user && !syscall_user_pointer_ok_write(buffer, capacity)))
+                result = (uint64_t)-14;
+            else
+                result = (uint64_t)(int64_t)net_tcp_recv(owner_pid, (int)frame->x[0],
+                    buffer, (uint32_t)capacity, (uint32_t)timeout_ms);
+            break;
+        }
+
+        case SYS_NET_TCP_CLOSE:
+        {
+            int owner_pid = from_user ? user_current_pid() : scheduler_current_pid();
+            if (owner_pid < 0) owner_pid = 0;
+            if (frame->x[0] > 0x7FFFFFFFULL) result = (uint64_t)-9;
+            else result = (uint64_t)(int64_t)net_tcp_close(owner_pid, (int)frame->x[0]);
+            break;
+        }
+
         default:
             result = (uint64_t)-38;
             break;
@@ -660,5 +726,4 @@ void syscall_dispatch(ExceptionFrame* frame, int from_user)
        kernel eret one instruction past the caller's true return address,
        corrupting control flow on every syscall. */
     frame->x[0] = result;
-    if (from_user) fs_set_credentials(saved_fs_uid, saved_fs_gid);
 }

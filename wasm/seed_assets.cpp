@@ -7,21 +7,21 @@
     extern "C" const uint8_t symbol##_end[]
 #define ASSET_SIZE(symbol) ((uint64_t)(symbol##_end - symbol##_start))
 
-DECLARE_ASSET(rio_asset_apps_terminal_rpk);
-DECLARE_ASSET(rio_asset_apps_calculator_rpk);
-DECLARE_ASSET(rio_asset_apps_clock_rpk);
-DECLARE_ASSET(rio_asset_apps_files_rpk);
-DECLARE_ASSET(rio_asset_apps_launcher_rpk);
-DECLARE_ASSET(rio_asset_apps_wallpaper_rpk);
-DECLARE_ASSET(rio_asset_apps_pengaturan_rpk);
-DECLARE_ASSET(rio_asset_assets_icons_terminal_bmp);
-DECLARE_ASSET(rio_asset_assets_icons_calculator_bmp);
-DECLARE_ASSET(rio_asset_assets_icons_clock_bmp);
-DECLARE_ASSET(rio_asset_assets_icons_files_bmp);
-DECLARE_ASSET(rio_asset_assets_icons_launcher_bmp);
-DECLARE_ASSET(rio_asset_assets_icons_wallpaper_bmp);
-DECLARE_ASSET(rio_asset_assets_icons_settings_bmp);
-DECLARE_ASSET(rio_asset_assets_wallpapers_rioos_default_bmp);
+DECLARE_ASSET(rio_asset_userspace_apps_terminal_rpk);
+DECLARE_ASSET(rio_asset_userspace_apps_calculator_rpk);
+DECLARE_ASSET(rio_asset_userspace_apps_clock_rpk);
+DECLARE_ASSET(rio_asset_userspace_apps_files_rpk);
+DECLARE_ASSET(rio_asset_userspace_apps_launcher_rpk);
+DECLARE_ASSET(rio_asset_userspace_apps_wallpaper_rpk);
+DECLARE_ASSET(rio_asset_userspace_apps_pengaturan_rpk);
+DECLARE_ASSET(rio_asset_userspace_assets_icons_terminal_bmp);
+DECLARE_ASSET(rio_asset_userspace_assets_icons_calculator_bmp);
+DECLARE_ASSET(rio_asset_userspace_assets_icons_clock_bmp);
+DECLARE_ASSET(rio_asset_userspace_assets_icons_files_bmp);
+DECLARE_ASSET(rio_asset_userspace_assets_icons_launcher_bmp);
+DECLARE_ASSET(rio_asset_userspace_assets_icons_wallpaper_bmp);
+DECLARE_ASSET(rio_asset_userspace_assets_icons_settings_bmp);
+DECLARE_ASSET(rio_asset_userspace_assets_wallpapers_rioos_default_bmp);
 
 static void mkdir_if_missing(const char* path)
 {
@@ -44,21 +44,21 @@ extern "C" int rio_seed_assets()
 
     int errors = 0;
 #define SEED(path, symbol) do { if (seed_file_if_missing(path, symbol##_start, ASSET_SIZE(symbol)) != 0) ++errors; } while (0)
-    SEED("/apps/terminal.rpk", rio_asset_apps_terminal_rpk);
-    SEED("/apps/calculator.rpk", rio_asset_apps_calculator_rpk);
-    SEED("/apps/clock.rpk", rio_asset_apps_clock_rpk);
-    SEED("/apps/files.rpk", rio_asset_apps_files_rpk);
-    SEED("/apps/launcher.rpk", rio_asset_apps_launcher_rpk);
-    SEED("/apps/wallpaper.rpk", rio_asset_apps_wallpaper_rpk);
-    SEED("/apps/pengaturan.rpk", rio_asset_apps_pengaturan_rpk);
-    SEED("/icons/terminal.bmp", rio_asset_assets_icons_terminal_bmp);
-    SEED("/icons/calculator.bmp", rio_asset_assets_icons_calculator_bmp);
-    SEED("/icons/clock.bmp", rio_asset_assets_icons_clock_bmp);
-    SEED("/icons/files.bmp", rio_asset_assets_icons_files_bmp);
-    SEED("/icons/launcher.bmp", rio_asset_assets_icons_launcher_bmp);
-    SEED("/icons/wallpaper.bmp", rio_asset_assets_icons_wallpaper_bmp);
-    SEED("/icons/settings.bmp", rio_asset_assets_icons_settings_bmp);
-    SEED("/wallpapers/rioos-default.bmp", rio_asset_assets_wallpapers_rioos_default_bmp);
+    SEED("/apps/terminal.rpk", rio_asset_userspace_apps_terminal_rpk);
+    SEED("/apps/calculator.rpk", rio_asset_userspace_apps_calculator_rpk);
+    SEED("/apps/clock.rpk", rio_asset_userspace_apps_clock_rpk);
+    SEED("/apps/files.rpk", rio_asset_userspace_apps_files_rpk);
+    SEED("/apps/launcher.rpk", rio_asset_userspace_apps_launcher_rpk);
+    SEED("/apps/wallpaper.rpk", rio_asset_userspace_apps_wallpaper_rpk);
+    SEED("/apps/pengaturan.rpk", rio_asset_userspace_apps_pengaturan_rpk);
+    SEED("/icons/terminal.bmp", rio_asset_userspace_assets_icons_terminal_bmp);
+    SEED("/icons/calculator.bmp", rio_asset_userspace_assets_icons_calculator_bmp);
+    SEED("/icons/clock.bmp", rio_asset_userspace_assets_icons_clock_bmp);
+    SEED("/icons/files.bmp", rio_asset_userspace_assets_icons_files_bmp);
+    SEED("/icons/launcher.bmp", rio_asset_userspace_assets_icons_launcher_bmp);
+    SEED("/icons/wallpaper.bmp", rio_asset_userspace_assets_icons_wallpaper_bmp);
+    SEED("/icons/settings.bmp", rio_asset_userspace_assets_icons_settings_bmp);
+    SEED("/wallpapers/rioos-default.bmp", rio_asset_userspace_assets_wallpapers_rioos_default_bmp);
 #undef SEED
 
     static const uint8_t dark_theme[] = {'d','a','r','k'};

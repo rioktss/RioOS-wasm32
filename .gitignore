@@ -1,0 +1,28 @@
+# Build and generated outputs
+build/
+wasm/dist/obj/
+wasm/generated/assets.S
+*.o
+*.elf
+*.bin
+*.map
+
+# Generated tools
+.mykernel-tools/
+
+# Local storage images and host terminal data
+storage/disk.img
+storage/*.img
+.rioos-wasm32/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Logs and temporary files
+*.log
+*.tmp
+*.swp
+*~

@@ -6,7 +6,7 @@ import re
 root = Path(__file__).resolve().parents[1]
 wasm = root / "wasm"
 assets = []
-for base in (root / "apps", root / "assets" / "icons", root / "assets" / "wallpapers"):
+for base in (root / "userspace" / "apps", root / "userspace" / "assets" / "icons", root / "userspace" / "assets" / "wallpapers"):
     for path in sorted(base.glob("*")):
         if path.is_file() and path.suffix.lower() in (".rpk", ".bmp"):
             rel = path.relative_to(root).as_posix()

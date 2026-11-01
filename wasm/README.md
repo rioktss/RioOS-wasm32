@@ -1,38 +1,25 @@
-# RioOS WASM32 Browser Edition
+# WASM32 Platform Layer
 
-This directory contains the WASM32 source, host adapter, Linux-style browser terminal, build scripts, asset generator and tests. The archive intentionally omits native AArch64 boot code and hardware-specific implementations.
+Folder ini berisi adapter browser/Node, build target wasm32, terminal browser, framebuffer browser UI, runner, dan smoke test.
 
-## Build and test
+- `build.sh` — compile source bersama MyKernel v1.13.0 dan adapter WASM, lalu hasilkan `dist/rioos.wasm` serta halaman `dist/index.html` / `dist/ui.html`.
+- `platform.cpp` — host compatibility layer (storage sectors, clock, console output, dan capability status).
+- `port.cpp` — exported boot, input, framebuffer, dan CLI APIs.
+- `index.html` — browser terminal; command dieksekusi oleh dispatcher C++ di WASM.
+- `ui.html` — framebuffer 1024×768, lock screen, Home dan aplikasi di Canvas.
+- `terminal.cjs` — host terminal Node.js yang memakai module WASM dan persistent JSON sector store.
+- `test_wasm.cjs` — integration smoke tests.
 
-Requirements: Clang/Clang++, LLD (`wasm-ld`), Python 3, Node.js 18+ for the smoke test, and a browser with WebAssembly and Canvas support.
+## Run
 
-```sh
-# Host-terminal mode (interactive shell in Termux)
-bash run.sh
-
-# Graphical UI mode (opens browser)
-bash run-ui.sh
-
-# Rebuild WASM32 from source and run regression tests
-RIOOS_REBUILD=1 bash run.sh   # rebuild and enter terminal mode
-bash wasm/build.sh            # rebuild only
+```bash
+bash wasm/build.sh
 node wasm/test_wasm.cjs
+bash wasm/run.sh          # Host terminal Node.js
+bash wasm/run-terminal.sh # Browser terminal
+bash wasm/run-ui.sh        # Browser framebuffer UI
 ```
 
-Run `PORT=9000 bash run-ui.sh` to select another port. The browser page uses a minimal terminal-inspired layout around RioOS’s graphical framebuffer. `bash run.sh` instead starts a real line-oriented host terminal connected to RioOS’s WASM32 command dispatcher and persistent MyFS image.
+Gunakan `PORT=9000` untuk port berbeda. `BIND=0.0.0.0` dapat dipakai bila halaman ingin diakses dari perangkat lain pada jaringan lokal; jangan expose server ke jaringan yang tidak dipercaya.
 
-## Ported behavior
-
-- Preserves RioOS's pixel UI renderer, lock screen, Home screen and seven built-in app modules inside the WASM build for source/feature continuity. The current browser page intentionally exposes the terminal interface rather than the framebuffer UI.
-- Reuses the shared shell command dispatcher, environment variables, shell history, file descriptors, VFS/MyFS and built-in app manifests.
-- The browser terminal uses a Linux-like prompt, command transcript, command history, keyboard shortcuts, and clear/copy/restart controls.
-- Commands are executed by RioOS’s actual `rio_cli_execute` API inside the WASM module, not by a fake JavaScript command simulator.
-- MyFS sector data is bridged to browser `localStorage`, subject to browser quota and site-data policies. In host-terminal mode, MyFS sectors persist at `~/.rioos-wasm32/myfs-sectors.json` (or `RIOOS_DATA_DIR` if set).
-
-## Limitations
-
-WASM browser sandboxing does not expose the native AArch64 MMU, exception vectors, GIC/timer interrupts, privileged execution, native scheduler/context switching/SMP, AArch64 ELF execution or QEMU VirtIO devices. Compatibility APIs are implemented as stubs or report unavailable capabilities. This build is not a bit-for-bit native-kernel replacement and should not be treated as a security boundary.
-
-## Validation
-
-`node wasm/test_wasm.cjs` runs deterministic smoke tests for module boot, framebuffer rendering, lock-to-home navigation, all seven apps, terminal input and filesystem persistence reload. These checks do not guarantee freedom from all bugs.
+WASM port tidak menyediakan hardware AArch64, VirtIO, MMU/GIC, native context switching atau SMP. Rincian ada di `docs/WASM32_PORT.md`.
