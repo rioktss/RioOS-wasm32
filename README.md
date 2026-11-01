@@ -1,32 +1,38 @@
 RioOS WASM32
 
-Run RioOS directly in your web browser using WebAssembly.
+A WebAssembly port of RioOS that runs directly in your web browser.
 
-""Live Demo" (https://img.shields.io/badge/Live%20Demo-RioOS-orange?style=for-the-badge)" (https://rioktss.github.io/RioOS-wasm32/)
+<p align="center">
+  <a href="https://rioktss.github.io/RioOS-wasm32/">
+    <strong>🌐 Live Demo</strong>
+  </a>
+</p>---
 
-🌐 Live Demo: https://rioktss.github.io/RioOS-wasm32/
+Overview
+
+RioOS WASM32 brings the RioOS kernel to the web using WebAssembly (WASM32), providing an interactive terminal environment without requiring a native installation.
 
 Features
 
-- WASM32 kernel port.
-- Interactive browser terminal.
-- Host-terminal support.
-- MyFS and VFS.
-- Shell and command dispatcher.
-- Persistent browser storage.
-- Linux, Termux, macOS, and Windows build scripts.
+- WebAssembly kernel execution
+- Interactive browser terminal
+- Host terminal support
+- MyFS and VFS
+- Shell and command system
+- Persistent storage
+- Cross-platform build scripts
 
 Build
 
-Requirements: Clang, LLD, Python 3, and Node.js.
+Requirements: Clang, LLD, Python 3, Node.js.
 
-Termux / Linux:
-
+# Build
 bash termux/build.sh
+
+# Run
 bash termux/run.sh
 
-Browser terminal:
-
+# Browser terminal
 bash termux/run-terminal.sh
 
 Project Structure
@@ -51,9 +57,9 @@ RioOS-wasm32/
 ├── macos/
 └── windows/
 
-Platform
+Platform Limitations
 
-RioOS WASM32 runs in WebAssembly and uses browser-compatible platform interfaces. Native hardware features such as physical MMU, GIC, and native SMP are not available in the browser.
+WASM32 runs inside a browser sandbox. Native hardware features such as physical MMU, GIC, hardware interrupts, and native SMP are not directly available.
 
 License
 
@@ -61,4 +67,7 @@ See "LICENSE" (LICENSE).
 
 ---
 
-RioOS — An Operating System on the Web.
+<p align="center">
+  <strong>RioOS</strong><br>
+  <sub>An Operating System on the Web.</sub>
+</p>
